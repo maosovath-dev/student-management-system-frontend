@@ -1,0 +1,28 @@
+// Bootstrap CSS
+import "bootstrap/dist/css/bootstrap.min.css";
+
+// Bootstrap JS
+import "bootstrap/dist/js/bootstrap.bundle.min.js";
+
+// Bootstrap Icons
+import "bootstrap-icons/font/bootstrap-icons.css";
+
+// Your CSS
+import "./assets/main.css";
+
+
+// Vue
+import { createApp } from "vue";
+import { createPinia } from "pinia";
+
+import App from "./App.vue";
+import router from "./router";
+
+
+const app = createApp(App);
+
+app.use(createPinia());
+
+app.use(router);
+
+app.mount("#app");
