@@ -82,6 +82,12 @@ const routes = [
             }
 
         ]
+    },
+    {
+        path: "/verify-otp",
+        name: "verify-otp",
+        component: () =>
+            import("@/views/auth/VerifyOtp.vue")
     }
 ];
 
