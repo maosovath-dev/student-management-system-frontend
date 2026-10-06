@@ -28,50 +28,101 @@ const user = computed(() => {
    MENU
 ========================= */
 
-const menuItems = [
+const dashboardItem = {
+    title: "ផ្ទាំងគ្រប់គ្រង",
+    icon: "bi-grid-fill",
+    path: "/dashboard",
+};
+
+const menuGroups = computed(() => [
     {
-        title: "ផ្ទាំងគ្រប់គ្រង",
-        icon: "bi-grid-fill",
-        path: "/dashboard",
-    },
-    {
-        title: "សិស្ស",
+        title: "ការគ្រប់គ្រង",
         icon: "bi-people-fill",
-        path: "/students",
-    },
-    {
-        title: "ថ្នាក់",
-        icon: "bi-building",
-        path: "/classes",
-    },
-    {
-        title: "មុខវិជ្ជា",
-        icon: "bi-book-fill",
-        path: "/subjects",
-    },
-    {
-        title: "ពិន្ទុ",
-        icon: "bi-bar-chart-fill",
-        path: "/scores",
+        items: [
+            ...(user.value.role === "admin"
+                ? [{
+                    title: "គ្រូបង្រៀន",
+                    icon: "bi-person-workspace",
+                    path: "/teachers",
+                }]
+                : []),
+            {
+                title: "សិស្ស",
+                icon: "bi-person-fill",
+                path: "/students",
+            },
+            {
+                title: "ថ្នាក់រៀន",
+                icon: "bi-building",
+                path: "/classes",
+            },
+            {
+                title: "មុខវិជ្ជា",
+                icon: "bi-book-fill",
+                path: "/subjects",
+            },
+        ],
     },
     {
         title: "វត្តមាន",
         icon: "bi-calendar-check-fill",
-        path: "/attendance",
+        items: [
+            {
+                title: "កត់ត្រាវត្តមាន",
+                icon: "bi-pencil-square",
+                path: "/attendance",
+                view: "take",
+            },
+            {
+                title: "ប្រវត្តិវត្តមាន",
+                icon: "bi-clock-history",
+                path: "/attendance",
+                view: "history",
+            },
+        ],
     },
     {
-        title: "ប្រវត្តិរូប",
-        icon: "bi-person-fill",
-        path: "/profile",
+        title: "ពិន្ទុ",
+        icon: "bi-bar-chart-fill",
+        items: [
+            {
+                title: "គ្រប់ថ្នាក់រៀន",
+                icon: "bi-building",
+                path: "/scores",
+                view: "classes",
+            },
+            {
+                title: "ប្រវត្តិពិន្ទុ",
+                icon: "bi-clock-history",
+                path: "/scores",
+                view: "history",
+            },
+            {
+                title: "របាយការណ៍",
+                icon: "bi-file-earmark-bar-graph",
+                path: "/scores",
+                view: "reports",
+            },
+        ],
     },
-];
+]);
 
 /* =========================
    ACTIVE MENU
 ========================= */
 
-const isActive = (path) => {
-    return route.path === path;
+const isActive = (item) => {
+    return route.path === item.path && (item.view ? route.query.view === item.view : !route.query.view);
+};
+
+const getRoute = (item) => item.view
+    ? { path: item.path, query: { view: item.view } }
+    : item.path;
+
+const isGroupActive = (group) => group.items.some(isActive);
+
+const getTooltip = (item, groupTitle = "") => {
+    return groupTitle ? `${groupTitle} · ${item.title}` : item.title;
 };
 
 /* =========================
@@ -123,37 +174,59 @@ const logout = () => {
              MENU
         ====================================== -->
 
-        <nav class="sidebar-menu">
+        <nav class="sidebar-menu" aria-label="ម៉ឺនុយមេ">
+            <router-link
+                :to="dashboardItem.path"
+                class="menu-item dashboard-item"
+                :class="{ active: isActive(dashboardItem) }"
+            >
+                <div class="menu-icon">
+                    <i :class="['bi', dashboardItem.icon]"></i>
+                </div>
+                <span v-if="props.sidebarOpen">{{ dashboardItem.title }}</span>
+                <div v-if="!props.sidebarOpen" class="tooltip">{{ dashboardItem.title }}</div>
+            </router-link>
+
+            <section
+                v-for="group in menuGroups"
+                :key="group.title"
+                class="menu-group"
+                :class="{ 'group-active': isGroupActive(group) }"
+                :aria-label="group.title"
+            >
+                <h2 v-if="props.sidebarOpen" class="menu-group-title">
+                    <i :class="['bi', group.icon]" aria-hidden="true"></i>
+                    <span>{{ group.title }}</span>
+                </h2>
+                <div class="menu-group-items">
+                    <router-link
+                        v-for="item in group.items"
+                        :key="`${item.path}-${item.view || item.title}`"
+                        :to="getRoute(item)"
+                        class="menu-item submenu-item"
+                        :class="{ active: isActive(item) }"
+                    >
+                        <div class="menu-icon">
+                            <i :class="['bi', item.icon]" aria-hidden="true"></i>
+                        </div>
+                        <span v-if="props.sidebarOpen">{{ item.title }}</span>
+                        <div v-if="!props.sidebarOpen" class="tooltip">
+                            {{ getTooltip(item, group.title) }}
+                        </div>
+                    </router-link>
+                </div>
+            </section>
 
             <router-link
-                v-for="item in menuItems"
-                :key="item.path"
-                :to="item.path"
-                class="menu-item"
-                :class="{ active: isActive(item.path) }"
+                to="/profile"
+                class="menu-item profile-item"
+                :class="{ active: isActive({ path: '/profile' }) }"
             >
-
                 <div class="menu-icon">
-                    <i
-                        :class="[
-                            'bi',
-                            item.icon
-                        ]"
-                    ></i>
+                    <i class="bi bi-person-circle" aria-hidden="true"></i>
                 </div>
-
-                <span v-if="props.sidebarOpen">
-                    {{ item.title }}
-                </span>
-
-                <!-- Tooltip -->
-                <div
-                    v-if="!props.sidebarOpen"
-                    class="tooltip"
-                >
-                    {{ item.title }}
-                </div>
-
+                <span v-if="props.sidebarOpen">ប្រវត្តិរូប</span>
+                <div v-if="!props.sidebarOpen" class="tooltip">ប្រវត្តិរូប</div>
             </router-link>
 
         </nav>
@@ -375,6 +448,76 @@ const logout = () => {
 }
 
 
+.dashboard-item {
+
+    margin-bottom: 16px;
+
+}
+
+
+.menu-group {
+
+    margin-bottom: 13px;
+
+}
+
+
+.menu-group-title {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 9px;
+
+    margin: 0 0 5px;
+
+    padding: 0 12px;
+
+    color: #89968f;
+
+    font-size: 11px;
+
+    font-weight: 700;
+
+    letter-spacing: 0.07em;
+
+    text-transform: uppercase;
+
+}
+
+
+.menu-group-title i {
+
+    font-size: 12px;
+
+}
+
+
+.menu-group.group-active .menu-group-title {
+
+    color: #218455;
+
+}
+
+
+.menu-group-items {
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 2px;
+
+    margin-left: 8px;
+
+    padding-left: 8px;
+
+    border-left: 1px solid #e8efeb;
+
+}
+
+
 /* =====================================================
    MENU ITEM
 ===================================================== */
@@ -383,15 +526,15 @@ const logout = () => {
 
     position: relative;
 
-    height: 54px;
+    min-height: 44px;
 
     display: flex;
 
     align-items: center;
 
-    gap: 17px;
+    gap: 12px;
 
-    padding: 0 20px;
+    padding: 0 12px;
 
     border-radius: 13px;
 
@@ -399,12 +542,28 @@ const logout = () => {
 
     text-decoration: none;
 
-    font-size: 16px;
+    font-size: 14px;
 
     font-weight: 600;
 
     transition:
         all 0.25s ease;
+
+}
+
+
+.dashboard-item {
+
+    min-height: 48px;
+
+    font-size: 15px;
+
+}
+
+
+.profile-item {
+
+    margin-top: 4px;
 
 }
 
@@ -490,11 +649,43 @@ const logout = () => {
 }
 
 
+.sidebar.collapsed .dashboard-item {
+
+    margin-bottom: 12px;
+
+}
+
+
+.sidebar.collapsed .menu-group {
+
+    margin-bottom: 10px;
+
+}
+
+
+.sidebar.collapsed .menu-group-items {
+
+    margin-left: 0;
+
+    padding-left: 0;
+
+    border-left: 0;
+
+}
+
+
 .sidebar.collapsed .menu-item {
 
     justify-content: center;
 
     padding: 0;
+
+}
+
+
+.sidebar.collapsed .submenu-item {
+
+    min-height: 44px;
 
 }
 

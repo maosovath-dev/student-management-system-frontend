@@ -1,6 +1,10 @@
 <script setup>
-import { computed } from "vue";
+import { computed, onMounted, ref } from "vue";
+import { api } from "@/api/api";
 
+const dashboardData = ref(null);
+const dashboardLoading = ref(true);
+const dashboardError = ref("");
 
 const user = computed(() => {
 
@@ -20,11 +24,64 @@ const user = computed(() => {
 
 
 const userName = computed(() => {
-
     return user.value.name
         || "អ្នកប្រើប្រាស់";
-
 });
+
+const fetchDashboard = async () => {
+    dashboardLoading.value = true;
+    dashboardError.value = "";
+    try {
+        const response = await api.get("/dashboard");
+        dashboardData.value = response.data?.data;
+        if (!dashboardData.value?.stats) {
+            throw new Error("ទិន្នន័យ Dashboard មិនត្រឹមត្រូវទេ។");
+        }
+    } catch (error) {
+        dashboardError.value =
+            error.response?.data?.message ||
+            error.response?.data?.msg ||
+            error.message ||
+            "មិនអាចទាញយកទិន្នន័យ Dashboard បានទេ។";
+    } finally {
+        dashboardLoading.value = false;
+    }
+};
+
+const todayLabel = computed(() => {
+    const today = new Date();
+    return formatDate([
+        today.getFullYear(),
+        String(today.getMonth() + 1).padStart(2, "0"),
+        String(today.getDate()).padStart(2, "0"),
+    ].join("-"));
+});
+
+const formatDate = (value) => {
+    if (!value) return "—";
+    const dateText = String(value).slice(0, 10);
+    const [year, month, day] = dateText.split("-").map(Number);
+    if (!year || !month || !day) return dateText;
+    return new Intl.DateTimeFormat("km-KH", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+    }).format(new Date(year, month - 1, day));
+};
+
+const classAttendanceRate = (item) => `${Number(item.attendanceRate || 0).toFixed(1)}%`;
+const statusBarWidth = (count) => {
+    const total = Number(dashboardData.value?.todayAttendance?.total || 0);
+    return `${total ? (Number(count) / total) * 100 : 0}%`;
+};
+
+const statusLabel = (status) => ({
+    present: "មានវត្តមាន",
+    absent: "អវត្តមាន",
+    late: "មកយឺត",
+}[status] || "មិនស្គាល់");
+
+onMounted(fetchDashboard);
 </script>
 
 
@@ -83,6 +140,10 @@ const userName = computed(() => {
 
         </section>
 
+        <div v-if="dashboardError" class="dashboard-error" role="alert">
+            <span>{{ dashboardError }}</span>
+            <button type="button" @click="fetchDashboard">ព្យាយាមម្ដងទៀត</button>
+        </div>
 
         <!-- =================================
              Statistics
@@ -100,7 +161,7 @@ const userName = computed(() => {
                 <div>
                     <span>សិស្សសរុប</span>
 
-                    <strong>250</strong>
+                    <strong>{{ dashboardLoading ? "…" : dashboardData?.stats?.totalStudents ?? "—" }}</strong>
 
                     <small>
                         សិស្សក្នុងប្រព័ន្ធ
@@ -113,13 +174,32 @@ const userName = computed(() => {
             <div class="stat-card">
 
                 <div class="stat-icon green">
+                    <i class="bi bi-person-badge-fill"></i>
+                </div>
+
+                <div>
+                    <span>គ្រូបង្រៀន</span>
+
+                    <strong>{{ dashboardLoading ? "…" : dashboardData?.stats?.totalTeachers ?? "—" }}</strong>
+
+                    <small>
+                        គ្រូបង្រៀនសរុប
+                    </small>
+                </div>
+
+            </div>
+
+
+            <div class="stat-card">
+
+                <div class="stat-icon blue">
                     <i class="bi bi-building"></i>
                 </div>
 
                 <div>
                     <span>ថ្នាក់សិក្សា</span>
 
-                    <strong>12</strong>
+                    <strong>{{ dashboardLoading ? "…" : dashboardData?.stats?.totalClasses ?? "—" }}</strong>
 
                     <small>
                         ថ្នាក់សរុប
@@ -138,7 +218,7 @@ const userName = computed(() => {
                 <div>
                     <span>មុខវិជ្ជា</span>
 
-                    <strong>24</strong>
+                    <strong>{{ dashboardLoading ? "…" : dashboardData?.stats?.totalSubjects ?? "—" }}</strong>
 
                     <small>
                         មុខវិជ្ជាសរុប
@@ -148,287 +228,168 @@ const userName = computed(() => {
             </div>
 
 
-            <div class="stat-card">
-
-                <div class="stat-icon orange">
-                    <i class="bi bi-bar-chart-fill"></i>
-                </div>
-
-                <div>
-                    <span>ពិន្ទុ</span>
-
-                    <strong>856</strong>
-
-                    <small>
-                        លទ្ធផលសរុប
-                    </small>
-                </div>
-
-            </div>
-
-
-            <div class="stat-card">
-
-                <div class="stat-icon red">
-                    <i class="bi bi-calendar-check-fill"></i>
-                </div>
-
-                <div>
-                    <span>វត្តមាន</span>
-
-                    <strong>87%</strong>
-
-                    <small>
-                        ក្នុងខែនេះ
-                    </small>
-                </div>
-
-            </div>
-
         </section>
 
 
-        <!-- =================================
-             Bottom Grid
-        ================================== -->
+        <section class="today-attendance-card dashboard-card">
+            <div class="card-header">
+                <div>
+                    <h2>វត្តមានថ្ងៃនេះ</h2>
+                    <p>{{ todayLabel }} · សរុប {{ dashboardLoading ? "…" : dashboardData?.todayAttendance?.total ?? 0 }} កំណត់ត្រា</p>
+                </div>
+                <a href="/attendance">មើលប្រវត្តិវត្តមាន →</a>
+            </div>
+            <div class="today-attendance-grid">
+                <div class="today-attendance-stat present-stat">
+                    <span>មានវត្តមាន</span>
+                    <strong>{{ dashboardLoading ? "…" : dashboardData?.todayAttendance?.present ?? 0 }}</strong>
+                </div>
+                <div class="today-attendance-stat absent-stat">
+                    <span>អវត្តមាន</span>
+                    <strong>{{ dashboardLoading ? "…" : dashboardData?.todayAttendance?.absent ?? 0 }}</strong>
+                </div>
+                <div class="today-attendance-stat late-stat">
+                    <span>មកយឺត</span>
+                    <strong>{{ dashboardLoading ? "…" : dashboardData?.todayAttendance?.late ?? 0 }}</strong>
+                </div>
+                <div class="today-attendance-stat rate-stat">
+                    <span>អត្រាមានវត្តមាន</span>
+                    <strong>{{ dashboardLoading ? "…" : `${dashboardData?.todayAttendance?.attendanceRate ?? 0}%` }}</strong>
+                </div>
+            </div>
+        </section>
 
-        <section class="dashboard-grid">
-
-
-            <!-- Recent Results -->
-
-            <div class="dashboard-card results-card">
-
+        <section class="dashboard-grid attendance-overview-grid">
+            <div class="dashboard-card overview-card">
                 <div class="card-header">
-
                     <div>
-
-                        <h2>
-                            លទ្ធផលថ្មីៗ
-                        </h2>
-
-                        <p>
-                            ព័ត៌មានលទ្ធផលសិក្សាចុងក្រោយ
-                        </p>
-
+                        <h2>វត្តមានតាមថ្នាក់</h2>
+                        <p>អត្រាសិស្សមានវត្តមានក្នុងថ្ងៃនេះ</p>
                     </div>
-
-                    <a href="/scores">
-                        មើលទាំងអស់ →
-                    </a>
-
                 </div>
-
-
-                <div class="table-wrapper">
-
-                    <table>
-
-                        <thead>
-
-                            <tr>
-
-                                <th>មុខវិជ្ជា</th>
-
-                                <th>ប្រភេទប្រឡង</th>
-
-                                <th>ពិន្ទុ</th>
-
-                                <th>កាលបរិច្ឆេទ</th>
-
-                            </tr>
-
-                        </thead>
-
-
-                        <tbody>
-
-                            <tr>
-
-                                <td>
-                                    រចនាសម្ព័ន្ធទិន្នន័យ
-                                </td>
-
-                                <td>
-                                    ប្រឡងពាក់កណ្ដាលឆមាស
-                                </td>
-
-                                <td>
-                                    <span class="grade a">
-                                        A
-                                    </span>
-                                </td>
-
-                                <td>
-                                    12 មិថុនា 2026
-                                </td>
-
-                            </tr>
-
-
-                            <tr>
-
-                                <td>
-                                    ប្រព័ន្ធគ្រប់គ្រងទិន្នន័យ
-                                </td>
-
-                                <td>
-                                    ប្រឡងពាក់កណ្ដាលឆមាស
-                                </td>
-
-                                <td>
-                                    <span class="grade ap">
-                                        A+
-                                    </span>
-                                </td>
-
-                                <td>
-                                    10 មិថុនា 2026
-                                </td>
-
-                            </tr>
-
-
-                            <tr>
-
-                                <td>
-                                    ប្រព័ន្ធប្រតិបត្តិការ
-                                </td>
-
-                                <td>
-                                    ប្រឡងពាក់កណ្ដាលឆមាស
-                                </td>
-
-                                <td>
-                                    <span class="grade bp">
-                                        B+
-                                    </span>
-                                </td>
-
-                                <td>
-                                    08 មិថុនា 2026
-                                </td>
-
-                            </tr>
-
-                        </tbody>
-
-                    </table>
-
+                <div class="chart-list">
+                    <div v-if="dashboardLoading" class="dashboard-table-state">កំពុងទាញយកទិន្នន័យ...</div>
+                    <div v-else-if="dashboardData?.attendanceByClass?.length === 0" class="dashboard-table-state">
+                        មិនទាន់មានទិន្នន័យវត្តមានថ្ងៃនេះទេ
+                    </div>
+                    <div
+                        v-for="item in dashboardData?.attendanceByClass || []"
+                        :key="item.classId"
+                        class="class-attendance-row"
+                    >
+                        <div class="class-attendance-label">
+                            <strong>{{ item.className }}</strong>
+                            <span>{{ classAttendanceRate(item) }}</span>
+                        </div>
+                        <div
+                            class="chart-track"
+                            role="progressbar"
+                            :aria-label="`អត្រាមានវត្តមាន ${item.className}`"
+                            aria-valuemin="0"
+                            aria-valuemax="100"
+                            :aria-valuenow="item.attendanceRate"
+                        >
+                            <div class="chart-bar class-chart-bar" :style="{ width: `${item.attendanceRate}%` }"></div>
+                        </div>
+                    </div>
                 </div>
-
             </div>
 
-
-            <!-- Notice -->
-
-            <div class="dashboard-card notice-card">
-
+            <div class="dashboard-card overview-card">
                 <div class="card-header">
-
                     <div>
-
-                        <h2>
-                            📢 ព័ត៌មានជូនដំណឹង
-                        </h2>
-
-                        <p>
-                            ព័ត៌មានថ្មីៗ
-                        </p>
-
+                        <h2>ស្ថានភាពវត្តមាន</h2>
+                        <p>ចំនួនកំណត់ត្រាតាមស្ថានភាពថ្ងៃនេះ</p>
                     </div>
-
-                    <a href="#">
-                        មើលទាំងអស់
-                    </a>
-
                 </div>
-
-
-                <div class="notice-list">
-
-
-                    <div class="notice-item">
-
-                        <div class="notice-icon">
-                            <i class="bi bi-megaphone-fill"></i>
+                <div class="chart-list status-chart-list">
+                    <div
+                        v-for="status in [
+                            { key: 'present', label: 'មានវត្តមាន', className: 'present-chart-bar', count: dashboardData?.todayAttendance?.present ?? 0 },
+                            { key: 'absent', label: 'អវត្តមាន', className: 'absent-chart-bar', count: dashboardData?.todayAttendance?.absent ?? 0 },
+                            { key: 'late', label: 'មកយឺត', className: 'late-chart-bar', count: dashboardData?.todayAttendance?.late ?? 0 },
+                        ]"
+                        :key="status.key"
+                        class="status-chart-row"
+                    >
+                        <div class="class-attendance-label">
+                            <strong>{{ status.label }}</strong>
+                            <span>{{ dashboardLoading ? "…" : status.count }}</span>
                         </div>
-
-                        <div>
-
-                            <strong>
-                                កាលវិភាគប្រឡងឆមាស
-                            </strong>
-
-                            <p>
-                                កាលវិភាគប្រឡងនឹងប្រព្រឹត្ត
-                                នៅថ្ងៃទី 25 មិថុនា 2026។
-                            </p>
-
-                            <small>
-                                15 មិថុនា 2026
-                            </small>
-
+                        <div
+                            class="chart-track"
+                            role="progressbar"
+                            :aria-label="status.label"
+                            aria-valuemin="0"
+                            :aria-valuemax="dashboardData?.todayAttendance?.total || 0"
+                            :aria-valuenow="status.count"
+                        >
+                            <div
+                                :class="['chart-bar', status.className]"
+                                :style="{ width: statusBarWidth(status.count) }"
+                            ></div>
                         </div>
-
                     </div>
-
-
-                    <div class="notice-item">
-
-                        <div class="notice-icon">
-                            <i class="bi bi-megaphone-fill"></i>
-                        </div>
-
-                        <div>
-
-                            <strong>
-                                ប្រកាសលទ្ធផលប្រឡង
-                            </strong>
-
-                            <p>
-                                លទ្ធផលប្រឡងឆមាស
-                                បានប្រកាសរួចរាល់។
-                            </p>
-
-                            <small>
-                                12 មិថុនា 2026
-                            </small>
-
-                        </div>
-
-                    </div>
-
-
-                    <div class="notice-item">
-
-                        <div class="notice-icon">
-                            <i class="bi bi-megaphone-fill"></i>
-                        </div>
-
-                        <div>
-
-                            <strong>
-                                កាលបរិច្ឆេទដាក់ Project
-                            </strong>
-
-                            <p>
-                                សូមដាក់ Project
-                                មុនថ្ងៃទី 20 មិថុនា។
-                            </p>
-
-                            <small>
-                                10 មិថុនា 2026
-                            </small>
-
-                        </div>
-
-                    </div>
-
+                    <p v-if="!dashboardLoading && !dashboardData?.todayAttendance?.total" class="chart-empty">
+                        មិនទាន់មានកំណត់ត្រាវត្តមានថ្ងៃនេះទេ
+                    </p>
                 </div>
-
             </div>
+        </section>
 
+        <section class="dashboard-card recent-attendance-card">
+            <div class="card-header">
+                <div>
+                    <h2>វត្តមានថ្មីៗ</h2>
+                    <p>កំណត់ត្រាវត្តមានថ្ងៃនេះ</p>
+                </div>
+                <a href="/attendance">មើលទាំងអស់ →</a>
+            </div>
+            <div class="table-wrapper recent-attendance-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>សិស្ស</th>
+                            <th>ថ្នាក់</th>
+                            <th>កាលបរិច្ឆេទ</th>
+                            <th>ស្ថានភាព</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-if="dashboardLoading">
+                            <td colspan="4" class="dashboard-table-state">កំពុងទាញយកវត្តមាន...</td>
+                        </tr>
+                        <tr v-else-if="dashboardData?.recentAttendance?.length === 0">
+                            <td colspan="4" class="dashboard-table-state">មិនទាន់មានកំណត់ត្រាវត្តមានថ្ងៃនេះទេ</td>
+                        </tr>
+                        <tr v-for="record in dashboardData?.recentAttendance || []" :key="record.id">
+                            <td>
+                                <div class="recent-student-cell">
+                                    <div class="attendance-avatar">
+                                        <img
+                                            v-if="record.avatar_url"
+                                            :src="record.avatar_url"
+                                            :alt="`រូប Profile របស់ ${record.first_name} ${record.last_name}`"
+                                        />
+                                        <i v-else class="bi bi-person-fill" aria-hidden="true"></i>
+                                    </div>
+                                    <div>
+                                        <strong>{{ record.first_name }} {{ record.last_name }}</strong>
+                                        <small>{{ record.student_code }}</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{ record.class_name || "—" }}</td>
+                            <td>{{ formatDate(record.date) }}</td>
+                            <td>
+                                <span :class="['attendance-status', `attendance-${record.status}`]">
+                                    {{ statusLabel(record.status) }}
+                                </span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </section>
 
     </div>
@@ -522,6 +483,31 @@ const userName = computed(() => {
 
     font-size: 12px;
 
+}
+
+.dashboard-error {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-top: 16px;
+    padding: 12px 16px;
+    border: 1px solid #f1c9c9;
+    border-radius: 10px;
+    background: #fff7f7;
+    color: #a93535;
+    font-size: 13px;
+}
+
+.dashboard-error button {
+    flex: 0 0 auto;
+    padding: 7px 10px;
+    border: 1px solid #e7baba;
+    border-radius: 7px;
+    background: #fff;
+    color: #a93535;
+    cursor: pointer;
+    font: inherit;
 }
 
 
@@ -636,8 +622,7 @@ const userName = computed(() => {
 
     display: grid;
 
-    grid-template-columns:
-        repeat(5, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
 
     gap: 18px;
 
@@ -784,14 +769,171 @@ const userName = computed(() => {
 
     display: grid;
 
-    grid-template-columns:
-        minmax(0, 1.5fr)
-        minmax(350px, 0.8fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 
     gap: 20px;
 
     margin-top: 24px;
 
+}
+
+.today-attendance-card {
+    margin-top: 24px;
+}
+
+.today-attendance-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: 16px 20px;
+}
+
+.today-attendance-stat {
+    display: grid;
+    gap: 8px;
+    padding: 6px 18px;
+    border-right: 1px solid #edf2ef;
+}
+
+.today-attendance-stat:first-child {
+    padding-left: 4px;
+}
+
+.today-attendance-stat:last-child {
+    border-right: 0;
+}
+
+.today-attendance-stat span {
+    color: #78867f;
+    font-size: 12px;
+}
+
+.today-attendance-stat strong {
+    color: #17251f;
+    font-size: 28px;
+    line-height: 1.1;
+}
+
+.present-stat strong,
+.rate-stat strong {
+    color: #168c54;
+}
+
+.absent-stat strong {
+    color: #dc4758;
+}
+
+.late-stat strong {
+    color: #d38b17;
+}
+
+.attendance-overview-grid {
+    margin-top: 20px;
+}
+
+.overview-card {
+    min-height: 250px;
+}
+
+.chart-list {
+    display: grid;
+    gap: 18px;
+    padding: 20px 22px;
+}
+
+.class-attendance-row,
+.status-chart-row {
+    display: grid;
+    gap: 9px;
+}
+
+.class-attendance-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: #52625a;
+    font-size: 12px;
+}
+
+.class-attendance-label strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.class-attendance-label span {
+    flex: 0 0 auto;
+    color: #27372f;
+    font-weight: 700;
+}
+
+.chart-track {
+    width: 100%;
+    height: 10px;
+    overflow: hidden;
+    border-radius: 99px;
+    background: #edf2ef;
+}
+
+.chart-bar {
+    height: 100%;
+    min-width: 0;
+    border-radius: inherit;
+    transition: width 0.35s ease;
+}
+
+.class-chart-bar,
+.present-chart-bar {
+    background: linear-gradient(90deg, #32a765, #16834b);
+}
+
+.absent-chart-bar {
+    background: #e35a65;
+}
+
+.late-chart-bar {
+    background: #e7a331;
+}
+
+.chart-empty {
+    margin: 2px 0 0;
+    color: #89968f;
+    font-size: 12px;
+    text-align: center;
+}
+
+.recent-attendance-card {
+    margin-top: 20px;
+}
+
+.recent-attendance-table table {
+    min-width: 600px;
+}
+
+.recent-student-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 165px;
+}
+
+.recent-student-cell > div:last-child {
+    display: grid;
+    gap: 3px;
+}
+
+.recent-student-cell strong {
+    color: #27372f;
+    font-size: 12px;
+}
+
+.recent-student-cell small {
+    color: #89968f;
+    font-size: 10px;
+}
+
+.recent-attendance-table .attendance-status {
+    display: inline-flex;
 }
 
 
@@ -961,6 +1103,23 @@ td {
 
 }
 
+.grade.grade-c {
+    background: #fff2da;
+    color: #ba7b0e;
+}
+
+.grade.grade-d,
+.grade.grade-f {
+    background: #ffe9ed;
+    color: #c23d50;
+}
+
+.dashboard-table-state {
+    height: 90px;
+    text-align: center;
+    color: #89968f;
+}
+
 
 /* ========================================
    NOTICE
@@ -970,6 +1129,11 @@ td {
 
     padding: 5px 20px;
 
+}
+
+.recent-attendance-list {
+    max-height: 365px;
+    overflow-y: auto;
 }
 
 
@@ -1015,6 +1179,60 @@ td {
 
     font-size: 15px;
 
+}
+
+.attendance-avatar {
+    display: grid;
+    flex: 0 0 auto;
+    width: 38px;
+    height: 38px;
+    overflow: hidden;
+    place-items: center;
+    border-radius: 50%;
+    background: #e5e7eb;
+    color: #707579;
+    font-size: 25px;
+}
+
+.attendance-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.attendance-summary {
+    min-width: 0;
+    flex: 1;
+}
+
+.attendance-summary p {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.attendance-status {
+    align-self: flex-start;
+    padding: 5px 7px;
+    border-radius: 20px;
+    font-size: 8px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.attendance-present {
+    background: #ddf4e5;
+    color: #168c54;
+}
+
+.attendance-late {
+    background: #fff2da;
+    color: #ba7b0e;
+}
+
+.attendance-absent {
+    background: #ffe9ed;
+    color: #c23d50;
 }
 
 
@@ -1117,6 +1335,28 @@ td {
 
     }
 
+    .today-attendance-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px 0;
+        padding: 14px;
+    }
+
+    .today-attendance-stat {
+        padding: 4px 12px;
+    }
+
+    .today-attendance-stat:nth-child(2) {
+        border-right: 0;
+    }
+
+    .today-attendance-stat:nth-child(3) {
+        padding-left: 12px;
+    }
+
+    .today-attendance-stat strong {
+        font-size: 24px;
+    }
+
     .welcome-card {
 
         padding: 25px;
@@ -1127,6 +1367,11 @@ td {
 
         font-size: 23px;
 
+    }
+
+    .dashboard-error {
+        align-items: flex-start;
+        flex-direction: column;
     }
 
 }
