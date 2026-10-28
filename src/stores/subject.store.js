@@ -1,8 +1,10 @@
 import { ref, computed } from "vue";
 import { defineStore } from "pinia";
 import subjectApi from "../api/subject";
+import { useToast } from "@/composables/useToast";
 
 export const useSubjectStore = defineStore("subject", () => {
+  const { showToast } = useToast();
   // State
   const subjects = ref([]);
   const subjectItem = ref(null);
@@ -20,11 +22,11 @@ export const useSubjectStore = defineStore("subject", () => {
       const response = await subjectApi.getAll();
       subjects.value = response.data.data || response.data || [];
     } catch (err) {
-      console.error(err);
       error.value =
         err.response?.data?.message ||
         err.response?.data?.msg ||
-        "Failed to load subjects";
+        "មិនអាចទាញយកបញ្ជីមុខវិជ្ជាបានទេ។";
+      showToast(error.value, "error");
     } finally {
       loading.value = false;
     }
@@ -37,11 +39,11 @@ export const useSubjectStore = defineStore("subject", () => {
       const response = await subjectApi.getById(id);
       subjectItem.value = response.data.data || response.data;
     } catch (err) {
-      console.error(err);
       error.value =
         err.response?.data?.message ||
         err.response?.data?.msg ||
-        "Failed to load subject";
+        "មិនអាចទាញយកព័ត៌មានមុខវិជ្ជាបានទេ។";
+      showToast(error.value, "error");
     } finally {
       loading.value = false;
     }
@@ -55,11 +57,10 @@ export const useSubjectStore = defineStore("subject", () => {
       await fetchSubjects();
       return response.data;
     } catch (err) {
-      console.error(err);
       error.value =
         err.response?.data?.message ||
         err.response?.data?.msg ||
-        "Failed to create subject";
+        "មិនអាចបង្កើតមុខវិជ្ជាបានទេ។";
       throw err;
     } finally {
       loading.value = false;
@@ -74,11 +75,10 @@ export const useSubjectStore = defineStore("subject", () => {
       await fetchSubjects();
       return response.data;
     } catch (err) {
-      console.error(err);
       error.value =
         err.response?.data?.message ||
         err.response?.data?.msg ||
-        "Failed to update subject";
+        "មិនអាចកែប្រែមុខវិជ្ជាបានទេ។";
       throw err;
     } finally {
       loading.value = false;
@@ -93,11 +93,10 @@ export const useSubjectStore = defineStore("subject", () => {
       await fetchSubjects();
       return response.data;
     } catch (err) {
-      console.error(err);
       error.value =
         err.response?.data?.message ||
         err.response?.data?.msg ||
-        "Failed to delete subject";
+        "មិនអាចលុបមុខវិជ្ជាបានទេ។";
       throw err;
     } finally {
       loading.value = false;

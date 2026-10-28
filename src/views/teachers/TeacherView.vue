@@ -1,14 +1,18 @@
 <script setup>
 import { onMounted, reactive, ref } from "vue";
 import { useAdminStore } from "@/stores/admin.store";
+import BaseButton from "@/components/ui/BaseButton.vue";
+import BaseInput from "@/components/ui/BaseInput.vue";
+import BaseTable from "@/components/ui/BaseTable.vue";
 import BaseModal from "@/components/ui/BaseModal.vue";
+import { useToast } from "@/composables/useToast";
 
 const adminStore = useAdminStore();
+const { showToast } = useToast();
 const isCreateModalOpen = ref(false);
 const isViewModalOpen = ref(false);
 const isEditModalOpen = ref(false);
 const isDeleteModalOpen = ref(false);
-const notice = ref({ type: "", text: "" });
 const selectedTeacher = ref(null);
 const form = reactive({
   name: "",
@@ -23,9 +27,23 @@ const editForm = reactive({
   status: "active",
 });
 const message = ref({ type: "", text: "" });
+const teacherTableColumns = [
+  { key: "number", label: "#" },
+  { key: "avatar", label: "រូបភាព" },
+  { key: "name", label: "ឈ្មោះពេញ" },
+  { key: "email", label: "អ៊ីមែល" },
+  { key: "role", label: "តួនាទី" },
+  { key: "status", label: "ស្ថានភាព" },
+  { key: "created", label: "ថ្ងៃបង្កើត" },
+  { key: "actions", label: "សកម្មភាព", align: "center" },
+];
 
-onMounted(() => {
-  adminStore.fetchTeachers();
+onMounted(async () => {
+  try {
+    await adminStore.fetchTeachers();
+  } catch (error) {
+    showToast(typeof error === "string" ? error : "មិនអាចទាញយកបញ្ជីគ្រូបានទេ។", "error");
+  }
 });
 
 const openCreateModal = () => {
@@ -45,10 +63,7 @@ const openViewModal = async (teacher) => {
     selectedTeacher.value = await adminStore.getTeacher(teacher.id);
     isViewModalOpen.value = true;
   } catch (error) {
-    notice.value = {
-      type: "error",
-      text: typeof error === "string" ? error : "មិនអាចទាញយកព័ត៌មានគ្រូបានទេ។",
-    };
+    showToast(typeof error === "string" ? error : "មិនអាចទាញយកព័ត៌មានគ្រូបានទេ។", "error");
   }
 };
 
@@ -73,12 +88,15 @@ const updateTeacher = async () => {
       status: editForm.status,
     });
     isEditModalOpen.value = false;
-    notice.value = { type: "success", text: "បានកែប្រែព័ត៌មានគ្រូជោគជ័យ។" };
+    showToast("បានកែប្រែព័ត៌មានគ្រូជោគជ័យ។", "success");
   } catch (error) {
+    const errorText =
+      typeof error === "string" ? error : "មិនអាចកែប្រែព័ត៌មានគ្រូបានទេ។";
     message.value = {
       type: "error",
-      text: typeof error === "string" ? error : "មិនអាចកែប្រែព័ត៌មានគ្រូបានទេ។",
+      text: errorText,
     };
+    showToast(errorText, "error");
   }
 };
 
@@ -93,13 +111,10 @@ const deleteTeacher = async () => {
   try {
     await adminStore.deleteTeacher(selectedTeacher.value.id);
     isDeleteModalOpen.value = false;
-    notice.value = { type: "success", text: "បានលុបគណនីគ្រូជោគជ័យ។" };
+    showToast("បានលុបគណនីគ្រូជោគជ័យ។", "success");
     selectedTeacher.value = null;
   } catch (error) {
-    notice.value = {
-      type: "error",
-      text: typeof error === "string" ? error : "មិនអាចលុបគណនីគ្រូបានទេ។",
-    };
+    showToast(typeof error === "string" ? error : "មិនអាចលុបគណនីគ្រូបានទេ។", "error");
   }
 };
 
@@ -107,10 +122,12 @@ const createTeacher = async () => {
   message.value = { type: "", text: "" };
 
   if (form.password !== form.confirmPassword) {
+    const validationError = "ពាក្យសម្ងាត់ និងការបញ្ជាក់ពាក្យសម្ងាត់មិនត្រូវគ្នាទេ។";
     message.value = {
       type: "error",
-      text: "ពាក្យសម្ងាត់ និងការបញ្ជាក់ពាក្យសម្ងាត់មិនត្រូវគ្នាទេ។",
+      text: validationError,
     };
+    showToast(validationError, "warning");
     return;
   }
 
@@ -124,16 +141,22 @@ const createTeacher = async () => {
       role: "teacher",
     });
     isCreateModalOpen.value = false;
-    notice.value = {
-      type: "success",
-      text: "បានបង្កើតគណនីគ្រូជោគជ័យ។",
-    };
-    await adminStore.fetchTeachers();
+    showToast("បានបង្កើតគណនីគ្រូជោគជ័យ។", "success");
   } catch (error) {
+    const errorText =
+      typeof error === "string" ? error : "មិនអាចបង្កើតគណនីគ្រូបានទេ។";
     message.value = {
       type: "error",
-      text: typeof error === "string" ? error : "មិនអាចបង្កើតគណនីគ្រូបានទេ។",
+      text: errorText,
     };
+    showToast(errorText, "error");
+    return;
+  }
+
+  try {
+    await adminStore.fetchTeachers();
+  } catch {
+    showToast("បានបង្កើតគណនីគ្រូ ប៉ុន្តែមិនអាចធ្វើបច្ចុប្បន្នភាពបញ្ជីបានទេ។", "warning");
   }
 };
 </script>
@@ -148,15 +171,10 @@ const createTeacher = async () => {
         <h1>គ្រប់គ្រងគ្រូបង្រៀន</h1>
         <p>បញ្ជីគណនីគ្រូបង្រៀន និងស្ថានភាពគណនី។</p>
       </div>
-      <button class="create-button" type="button" @click="openCreateModal">
-        <i class="bi bi-person-plus-fill"></i>
+      <BaseButton class="create-button" variant="primary" icon="bi bi-person-plus-fill" type="button" @click="openCreateModal">
         បង្កើតគ្រូថ្មី
-      </button>
+      </BaseButton>
     </header>
-
-    <div v-if="notice.text" class="page-message success" role="status">
-      {{ notice.text }}
-    </div>
 
     <section class="teacher-card">
       <div class="table-heading">
@@ -170,67 +188,48 @@ const createTeacher = async () => {
         {{ adminStore.error }}
       </div>
 
-      <div class="table-responsive">
-        <table class="teacher-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>រូបភាព</th>
-              <th>ឈ្មោះពេញ</th>
-              <th>អ៊ីមែល</th>
-              <th>តួនាទី</th>
-              <th>ស្ថានភាព</th>
-              <th>ថ្ងៃបង្កើត</th>
-              <th class="actions-heading">សកម្មភាព</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="adminStore.loading && !adminStore.teachers.length">
-              <td colspan="8" class="table-state">កំពុងផ្ទុកបញ្ជីគ្រូ...</td>
-            </tr>
-            <tr v-else-if="!adminStore.teachers.length">
-              <td colspan="8" class="table-state">មិនទាន់មានគ្រូបង្រៀនទេ។</td>
-            </tr>
-            <tr v-for="(teacher, index) in adminStore.teachers" :key="teacher.id">
-              <td>{{ index + 1 }}</td>
-              <td>
-                <img
-                  v-if="teacher.avatar_url"
-                  class="teacher-avatar"
-                  :src="teacher.avatar_url"
-                  :alt="`រូប Profile របស់ ${teacher.name}`"
-                  loading="lazy"
-                />
-                <span v-else class="teacher-avatar-placeholder" aria-label="មិនមានរូប Profile">
-                  {{ teacher.name?.trim().charAt(0).toUpperCase() || "T" }}
-                </span>
-              </td>
-              <td class="teacher-name">{{ teacher.name }}</td>
-              <td>{{ teacher.email }}</td>
-              <td><span class="role-badge">Teacher</span></td>
-              <td>
-                <span class="status-badge" :class="teacher.status">
-                  {{ teacher.status === "active" ? "សកម្ម" : "អសកម្ម" }}
-                </span>
-              </td>
-              <td>{{ teacher.created_at ? new Date(teacher.created_at).toLocaleDateString() : "—" }}</td>
-              <td>
-                <div class="row-actions">
-                  <button type="button" class="action-button view-action" title="មើលព័ត៌មាន" aria-label="មើលព័ត៌មានគ្រូ" @click="openViewModal(teacher)">
-                    <i class="bi bi-eye"></i>
-                  </button>
-                  <button type="button" class="action-button edit-action" title="កែប្រែ" aria-label="កែប្រែព័ត៌មានគ្រូ" @click="openEditModal(teacher)">
-                    <i class="bi bi-pencil"></i>
-                  </button>
-                  <button type="button" class="action-button delete-action" title="លុប" aria-label="លុបគ្រូ" @click="openDeleteModal(teacher)">
-                    <i class="bi bi-trash"></i>
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <BaseTable
+        :columns="teacherTableColumns"
+        :items="adminStore.teachers"
+        :loading="adminStore.loading"
+        table-class="teacher-table"
+        empty-text="មិនទាន់មានគ្រូបង្រៀនទេ។"
+      >
+        <template #cell-number="{ index }">{{ index + 1 }}</template>
+        <template #cell-avatar="{ row }">
+          <img
+            v-if="row.avatar_url"
+            class="teacher-avatar"
+            :src="row.avatar_url"
+            :alt="`រូប Profile របស់ ${row.name}`"
+            loading="lazy"
+          />
+          <span v-else class="teacher-avatar-placeholder" aria-label="មិនមានរូប Profile">
+            {{ row.name?.trim().charAt(0).toUpperCase() || "T" }}
+          </span>
+        </template>
+        <template #cell-name="{ row }"><span class="teacher-name">{{ row.name }}</span></template>
+        <template #cell-email="{ row }">{{ row.email }}</template>
+        <template #cell-role><span class="role-badge">Teacher</span></template>
+        <template #cell-status="{ row }">
+          <span class="status-badge" :class="row.status">
+            {{ row.status === "active" ? "សកម្ម" : "អសកម្ម" }}
+          </span>
+        </template>
+        <template #cell-created="{ row }">
+          {{ row.created_at ? new Date(row.created_at).toLocaleDateString() : "—" }}
+        </template>
+        <template #cell-actions="{ row }">
+          <div class="row-actions">
+            <BaseButton type="button" variant="ghost" size="sm" icon="bi bi-eye" icon-only icon-tone="view" title="មើលព័ត៌មាន" aria-label="មើលព័ត៌មានគ្រូ" @click="openViewModal(row)">
+            </BaseButton>
+            <BaseButton type="button" variant="ghost" size="sm" icon="bi bi-pencil-square" icon-only icon-tone="edit" title="កែប្រែ" aria-label="កែប្រែព័ត៌មានគ្រូ" @click="openEditModal(row)">
+            </BaseButton>
+            <BaseButton type="button" variant="ghost" size="sm" icon="bi bi-trash3" icon-only icon-tone="delete" title="លុប" aria-label="លុបគ្រូ" @click="openDeleteModal(row)">
+            </BaseButton>
+          </div>
+        </template>
+      </BaseTable>
     </section>
 
     <BaseModal
@@ -241,19 +240,19 @@ const createTeacher = async () => {
       <form id="create-teacher-form" class="teacher-form" @submit.prevent="createTeacher">
         <label>
           ឈ្មោះពេញ
-          <input v-model="form.name" type="text" autocomplete="name" placeholder="បញ្ចូលឈ្មោះគ្រូ" required />
+          <BaseInput v-model="form.name" type="text" autocomplete="name" placeholder="បញ្ចូលឈ្មោះគ្រូ" required />
         </label>
         <label>
           អ៊ីមែល
-          <input v-model="form.email" type="email" autocomplete="email" placeholder="teacher@example.com" required />
+          <BaseInput v-model="form.email" type="email" autocomplete="email" placeholder="teacher@example.com" required />
         </label>
         <label>
           ពាក្យសម្ងាត់
-          <input v-model="form.password" type="password" autocomplete="new-password" minlength="6" placeholder="យ៉ាងតិច ៦ តួអក្សរ" required />
+          <BaseInput v-model="form.password" type="password" autocomplete="new-password" minlength="6" placeholder="យ៉ាងតិច ៦ តួអក្សរ" required />
         </label>
         <label>
           បញ្ជាក់ពាក្យសម្ងាត់
-          <input v-model="form.confirmPassword" type="password" autocomplete="new-password" minlength="6" placeholder="បញ្ចូលពាក្យសម្ងាត់ម្ដងទៀត" required />
+          <BaseInput v-model="form.confirmPassword" type="password" autocomplete="new-password" minlength="6" placeholder="បញ្ចូលពាក្យសម្ងាត់ម្ដងទៀត" required />
         </label>
         <label>
           ស្ថានភាព
@@ -267,11 +266,11 @@ const createTeacher = async () => {
         </div>
       </form>
       <template #footer>
-        <button class="cancel-button" type="button" @click="isCreateModalOpen = false">បោះបង់</button>
-        <button class="create-button modal-submit" type="submit" form="create-teacher-form" :disabled="adminStore.loading">
-          <i class="bi bi-person-plus-fill"></i>
+        <BaseButton variant="secondary" type="button" @click="isCreateModalOpen = false">បោះបង់</BaseButton>
+        <BaseButton variant="primary" class="modal-submit" type="submit" form="create-teacher-form" :disabled="adminStore.loading">
+          <i class="bi bi-person-plus-fill" aria-hidden="true"></i>
           {{ adminStore.loading ? "កំពុងបង្កើត..." : "បង្កើតគណនីគ្រូ" }}
-        </button>
+        </BaseButton>
       </template>
     </BaseModal>
 
@@ -299,7 +298,7 @@ const createTeacher = async () => {
         </dl>
       </div>
       <template #footer>
-        <button class="cancel-button" type="button" @click="isViewModalOpen = false">បិទ</button>
+        <BaseButton variant="secondary" type="button" @click="isViewModalOpen = false">បិទ</BaseButton>
       </template>
     </BaseModal>
 
@@ -311,11 +310,11 @@ const createTeacher = async () => {
       <form id="edit-teacher-form" class="teacher-form" @submit.prevent="updateTeacher">
         <label>
           ឈ្មោះពេញ
-          <input v-model="editForm.name" type="text" autocomplete="name" required />
+          <BaseInput v-model="editForm.name" type="text" autocomplete="name" required />
         </label>
         <label>
           អ៊ីមែល
-          <input v-model="editForm.email" type="email" autocomplete="email" required />
+          <BaseInput v-model="editForm.email" type="email" autocomplete="email" required />
         </label>
         <label>
           ស្ថានភាព
@@ -327,10 +326,10 @@ const createTeacher = async () => {
         <div v-if="message.text" class="form-message error" role="alert">{{ message.text }}</div>
       </form>
       <template #footer>
-        <button class="cancel-button" type="button" @click="isEditModalOpen = false">បោះបង់</button>
-        <button class="create-button modal-submit" type="submit" form="edit-teacher-form" :disabled="adminStore.loading">
+        <BaseButton variant="secondary" type="button" @click="isEditModalOpen = false">បោះបង់</BaseButton>
+        <BaseButton variant="primary" class="modal-submit" type="submit" form="edit-teacher-form" :disabled="adminStore.loading">
           {{ adminStore.loading ? "កំពុងរក្សាទុក..." : "រក្សាទុក" }}
-        </button>
+        </BaseButton>
       </template>
     </BaseModal>
 
@@ -345,10 +344,10 @@ const createTeacher = async () => {
         មែនទេ? សកម្មភាពនេះមិនអាចត្រឡប់វិញបានទេ។
       </p>
       <template #footer>
-        <button class="cancel-button" type="button" @click="isDeleteModalOpen = false">បោះបង់</button>
-        <button class="delete-confirm-button" type="button" :disabled="adminStore.loading" @click="deleteTeacher">
+        <BaseButton variant="secondary" type="button" @click="isDeleteModalOpen = false">បោះបង់</BaseButton>
+        <BaseButton variant="danger" type="button" :disabled="adminStore.loading" @click="deleteTeacher">
           {{ adminStore.loading ? "កំពុងលុប..." : "លុបគ្រូ" }}
-        </button>
+        </BaseButton>
       </template>
     </BaseModal>
   </main>
@@ -430,21 +429,21 @@ const createTeacher = async () => {
   overflow-x: auto;
 }
 
-.teacher-table {
+:deep(.teacher-table) {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
   white-space: nowrap;
 }
 
-.teacher-table th,
-.teacher-table td {
+:deep(.teacher-table th),
+:deep(.teacher-table td) {
   padding: 16px 22px;
   border-bottom: 1px solid #edf1ee;
   font-size: 14px;
 }
 
-.teacher-table th {
+:deep(.teacher-table th) {
   color: #718078;
   font-size: 12px;
   font-weight: 700;
@@ -458,33 +457,6 @@ const createTeacher = async () => {
   display: flex;
   justify-content: center;
   gap: 7px;
-}
-
-.action-button {
-  display: inline-grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  border: 1px solid #e1e9e4;
-  border-radius: 8px;
-  background: #fff;
-  cursor: pointer;
-}
-
-.action-button:hover {
-  background: #f5f9f6;
-}
-
-.view-action {
-  color: #2563eb;
-}
-
-.edit-action {
-  color: #16834b;
-}
-
-.delete-action {
-  color: #dc2626;
 }
 
 .teacher-name {
@@ -558,41 +530,6 @@ const createTeacher = async () => {
 .page-message.error {
   background: #fef2f2;
   color: #b91c1c;
-}
-
-.create-button,
-.cancel-button {
-  display: inline-flex;
-  min-height: 42px;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 9px;
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.create-button {
-  background: #16834b;
-  color: #fff;
-}
-
-.create-button:hover:not(:disabled) {
-  background: #11683b;
-}
-
-.cancel-button {
-  border: 1px solid #dfe8e3;
-  background: #fff;
-  color: #52625a;
-}
-
-.modal-submit:disabled {
-  cursor: wait;
-  opacity: 0.7;
 }
 
 .teacher-form {
@@ -707,23 +644,6 @@ const createTeacher = async () => {
   color: #243b2e;
 }
 
-.delete-confirm-button {
-  min-height: 42px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 9px;
-  background: #dc2626;
-  color: #fff;
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.delete-confirm-button:disabled {
-  cursor: wait;
-  opacity: 0.7;
-}
-
 @media (max-width: 640px) {
   .teacher-page {
     padding: 24px 16px;
@@ -742,8 +662,8 @@ const createTeacher = async () => {
     padding: 20px;
   }
 
-  .teacher-table th,
-  .teacher-table td {
+  :deep(.teacher-table th),
+  :deep(.teacher-table td) {
     padding: 14px 16px;
   }
 }

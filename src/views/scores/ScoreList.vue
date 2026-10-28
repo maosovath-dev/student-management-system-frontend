@@ -1,12 +1,20 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { api } from "@/api/api";
 import scoreApi from "@/api/scores";
+import { useRoute } from "vue-router";
+import BaseButton from "@/components/ui/BaseButton.vue";
+import BaseInput from "@/components/ui/BaseInput.vue";
+import BaseTable from "@/components/ui/BaseTable.vue";
 import BaseModal from "@/components/ui/BaseModal.vue";
+import { useToast } from "@/composables/useToast";
 
+const { showToast } = useToast();
+const route = useRoute();
 const scores = ref([]);
 const students = ref([]);
 const subjects = ref([]);
+const classes = ref([]);
 const loading = ref(false);
 const saving = ref(false);
 const deleting = ref(false);
@@ -14,6 +22,8 @@ const loadError = ref("");
 const actionError = ref("");
 const search = ref("");
 const selectedSemester = ref("");
+const selectedClassId = ref("");
+const isHistoryView = computed(() => route.query.view === "history");
 const isFormModalOpen = ref(false);
 const isDeleteModalOpen = ref(false);
 const selectedScore = ref(null);
@@ -24,6 +34,15 @@ const form = reactive({
   score: "",
   semester: "",
 });
+
+const scoreTableColumns = [
+  { key: "student", label: "សិស្ស" },
+  { key: "class", label: "ថ្នាក់រៀន" },
+  { key: "subject", label: "មុខវិជ្ជា" },
+  { key: "semester", label: "ឆមាស" },
+  { key: "score", label: "ពិន្ទុ" },
+  { key: "actions", label: "សកម្មភាព" },
+];
 
 const currentUser = computed(() => {
   try {
@@ -50,15 +69,17 @@ const fetchData = async () => {
   loadError.value = "";
 
   try {
-    const [scoresResponse, studentsResponse, subjectsResponse] = await Promise.all([
+    const [scoresResponse, studentsResponse, subjectsResponse, classesResponse] = await Promise.all([
       scoreApi.getAll(),
       api.get("/students"),
       api.get("/subjects"),
+      api.get("/classes"),
     ]);
 
     scores.value = getList(scoresResponse);
     students.value = getList(studentsResponse);
     subjects.value = getList(subjectsResponse);
+    classes.value = getList(classesResponse);
   } catch (error) {
     loadError.value = getErrorMessage(error);
   } finally {
@@ -70,28 +91,101 @@ const semesters = computed(() =>
   [...new Set(scores.value.map((item) => item.semester).filter(Boolean))].sort()
 );
 
+const studentById = computed(() =>
+  new Map(students.value.map((student) => [String(student.id), student]))
+);
+
+const getStudentAvatar = (score) => {
+  const student = studentById.value.get(String(score.student_id));
+  return student?.avatar_url || student?.avatar || student?.user?.avatar_url || null;
+};
+
+const classCards = computed(() =>
+  classes.value.map((item) => {
+    const classStudents = students.value.filter(
+      (student) => Number(student.class_id) === Number(item.id)
+    );
+    const studentIds = new Set(classStudents.map((student) => String(student.id)));
+    const classScores = scores.value.filter((score) => studentIds.has(String(score.student_id)));
+    const average = classScores.length
+      ? (
+          classScores.reduce((total, score) => total + Number(score.score || 0), 0) /
+          classScores.length
+        ).toFixed(1)
+      : "0.0";
+
+    return {
+      ...item,
+      student_count: classStudents.length,
+      score_count: classScores.length,
+      average_score: average,
+    };
+  })
+);
+
+const selectedClass = computed(() =>
+  classes.value.find((item) => String(item.id) === selectedClassId.value) || null
+);
+
+const selectedClassCard = computed(() =>
+  classCards.value.find((item) => String(item.id) === selectedClassId.value) || null
+);
+
+const availableStudents = computed(() =>
+  !isHistoryView.value && selectedClassId.value
+    ? students.value.filter(
+        (student) => String(student.class_id) === selectedClassId.value
+      )
+    : students.value
+);
+
 const filteredScores = computed(() => {
   const keyword = search.value.trim().toLowerCase();
 
   return scores.value.filter((item) => {
     const studentName = `${item.first_name || ""} ${item.last_name || ""}`.trim();
+    const student = studentById.value.get(String(item.student_id));
+    const classId = String(student?.class_id ?? "");
     const matchesSearch =
       !keyword ||
       String(item.student_code || "").toLowerCase().includes(keyword) ||
       studentName.toLowerCase().includes(keyword) ||
-      String(item.subject_name || "").toLowerCase().includes(keyword);
+      String(item.subject_name || "").toLowerCase().includes(keyword) ||
+      String(student?.class_name || "").toLowerCase().includes(keyword);
     const matchesSemester =
       !selectedSemester.value || item.semester === selectedSemester.value;
+    const matchesClass = !selectedClassId.value || classId === selectedClassId.value;
 
-    return matchesSearch && matchesSemester;
+    return matchesSearch && matchesSemester && matchesClass;
   });
 });
 
 const averageScore = computed(() => {
-  if (scores.value.length === 0) return "0.0";
-  const total = scores.value.reduce((sum, item) => sum + Number(item.score || 0), 0);
-  return (total / scores.value.length).toFixed(1);
+  if (filteredScores.value.length === 0) return "0.0";
+  const total = filteredScores.value.reduce((sum, item) => sum + Number(item.score || 0), 0);
+  return (total / filteredScores.value.length).toFixed(1);
 });
+
+const openClassScores = (classId) => {
+  selectedClassId.value = String(classId);
+  search.value = "";
+  selectedSemester.value = "";
+};
+
+const backToClasses = () => {
+  selectedClassId.value = "";
+  search.value = "";
+  selectedSemester.value = "";
+};
+
+watch(
+  () => route.query.view,
+  () => {
+    selectedClassId.value = "";
+    search.value = "";
+    selectedSemester.value = "";
+  }
+);
 
 const openCreateModal = () => {
   Object.assign(form, {
@@ -127,10 +221,12 @@ const saveScore = async () => {
   const scoreValue = Number(form.score);
   if (!form.student_id || !form.subject_id) {
     actionError.value = "សូមជ្រើសរើសសិស្ស និងមុខវិជ្ជា។";
+    showToast(actionError.value, "warning");
     return;
   }
   if (form.score === "" || !Number.isFinite(scoreValue) || scoreValue < 0 || scoreValue > 100) {
     actionError.value = "ពិន្ទុត្រូវតែស្ថិតនៅចន្លោះ 0 និង 100។";
+    showToast(actionError.value, "warning");
     return;
   }
 
@@ -145,15 +241,21 @@ const saveScore = async () => {
   };
 
   try {
-    if (form.id) {
+    const isUpdate = Boolean(form.id);
+    if (isUpdate) {
       await scoreApi.update(form.id, payload);
     } else {
       await scoreApi.create(payload);
     }
     isFormModalOpen.value = false;
+    showToast(
+      isUpdate ? "បានកែប្រែពិន្ទុជោគជ័យ។" : "បានបញ្ចូលពិន្ទុជោគជ័យ។",
+      "success"
+    );
     await fetchData();
   } catch (error) {
     actionError.value = getErrorMessage(error);
+    showToast(actionError.value, "error");
   } finally {
     saving.value = false;
   }
@@ -169,8 +271,10 @@ const deleteScore = async () => {
     isDeleteModalOpen.value = false;
     selectedScore.value = null;
     await fetchData();
+    showToast("បានលុបពិន្ទុជោគជ័យ។", "success");
   } catch (error) {
     actionError.value = getErrorMessage(error);
+    showToast(actionError.value, "error");
   } finally {
     deleting.value = false;
   }
@@ -180,21 +284,25 @@ onMounted(fetchData);
 </script>
 
 <template>
-  <div class="page">
+  <div class="page score-page">
     <header class="page-header">
       <div class="page-title">
         <div class="title-icon" aria-hidden="true">
           <i class="bi bi-bar-chart-fill"></i>
         </div>
         <div>
-          <h1>គ្រប់គ្រងពិន្ទុ</h1>
-          <p>មើល និងគ្រប់គ្រងពិន្ទុសិស្សតាមមុខវិជ្ជា</p>
+          <h1>{{ isHistoryView ? "ប្រវត្តិពិន្ទុ" : "គ្រប់គ្រងពិន្ទុតាមថ្នាក់" }}</h1>
+          <p>{{ isHistoryView ? "ស្វែងរក និងពិនិត្យកំណត់ត្រាពិន្ទុសិស្ស" : "ជ្រើសរើសថ្នាក់រៀន ដើម្បីមើលពិន្ទុសិស្ស" }}</p>
         </div>
       </div>
-      <button class="primary-button" type="button" @click="openCreateModal">
-        <i class="bi bi-plus-lg" aria-hidden="true"></i>
+      <BaseButton
+        variant="primary"
+        icon="bi bi-plus-lg"
+        type="button"
+        @click="openCreateModal"
+      >
         បញ្ចូលពិន្ទុ
-      </button>
+      </BaseButton>
     </header>
 
     <div class="summary-grid">
@@ -204,7 +312,7 @@ onMounted(fetchData);
         </div>
         <div>
           <p>ពិន្ទុសរុប</p>
-          <strong>{{ scores.length }}</strong>
+          <strong>{{ filteredScores.length }}</strong>
           <span>កំណត់ត្រាពិន្ទុ</span>
         </div>
       </article>
@@ -223,10 +331,21 @@ onMounted(fetchData);
     <section class="table-card">
       <div class="table-header">
         <div>
-          <h2>បញ្ជីពិន្ទុ</h2>
-          <p>បង្ហាញ {{ filteredScores.length }} ក្នុងចំណោម {{ scores.length }} កំណត់ត្រា</p>
+          <h2>{{ isHistoryView ? "កំណត់ត្រាពិន្ទុ" : selectedClass ? `ពិន្ទុថ្នាក់ ${selectedClass.name}` : "ជ្រើសរើសថ្នាក់រៀន" }}</h2>
+          <p v-if="isHistoryView">បង្ហាញ {{ filteredScores.length }} ក្នុងចំណោម {{ scores.length }} កំណត់ត្រា</p>
+          <p v-else-if="selectedClass">មាន {{ filteredScores.length }} កំណត់ត្រាពិន្ទុក្នុងថ្នាក់នេះ</p>
+          <p v-else>ជ្រើសរើសថ្នាក់មួយខាងក្រោម ដើម្បីមើលប្រវត្តិពិន្ទុ</p>
         </div>
-        <div class="toolbar">
+        <div v-if="isHistoryView || selectedClass" class="toolbar">
+          <label v-if="isHistoryView" class="filter-control">
+            <span class="sr-only">ត្រងតាមថ្នាក់</span>
+            <select v-model="selectedClassId">
+              <option value="">គ្រប់ថ្នាក់</option>
+              <option v-for="item in classes" :key="item.id" :value="String(item.id)">
+                {{ item.name }}
+              </option>
+            </select>
+          </label>
           <label class="filter-control">
             <span class="sr-only">ត្រងតាមឆមាស</span>
             <select v-model="selectedSemester">
@@ -239,7 +358,7 @@ onMounted(fetchData);
           <label class="search-control">
             <i class="bi bi-search" aria-hidden="true"></i>
             <span class="sr-only">ស្វែងរកពិន្ទុ</span>
-            <input
+            <BaseInput
               v-model="search"
               type="search"
               placeholder="ស្វែងរកសិស្ស ឬមុខវិជ្ជា..."
@@ -253,69 +372,97 @@ onMounted(fetchData);
       </div>
       <div v-else-if="loadError" class="state-message error-message" role="alert">
         <span>មិនអាចទាញយកទិន្នន័យពិន្ទុបានទេ៖ {{ loadError }}</span>
-        <button class="retry-button" type="button" @click="fetchData">ព្យាយាមម្ដងទៀត</button>
+        <BaseButton variant="outline" type="button" @click="fetchData">ព្យាយាមម្ដងទៀត</BaseButton>
+      </div>
+      <div v-else-if="!isHistoryView && !selectedClass" class="class-score-grid">
+        <button
+          v-for="item in classCards"
+          :key="item.id"
+          type="button"
+          class="class-score-card"
+          @click="openClassScores(item.id)"
+        >
+          <span class="class-score-icon"><i class="bi bi-building" aria-hidden="true"></i></span>
+          <span class="class-score-name">{{ item.name }}</span>
+          <span class="class-score-description">{{ item.description || "ថ្នាក់រៀន" }}</span>
+          <span class="class-score-meta">
+            <span><i class="bi bi-people" aria-hidden="true"></i> {{ item.student_count }} សិស្ស</span>
+            <span><i class="bi bi-journal-check" aria-hidden="true"></i> {{ item.score_count }} ពិន្ទុ</span>
+          </span>
+          <span class="class-score-average">មធ្យមភាគ {{ item.average_score }} / 100</span>
+        </button>
+        <div v-if="classes.length === 0" class="empty-state">
+          មិនទាន់មានថ្នាក់រៀនក្នុងប្រព័ន្ធទេ
+        </div>
       </div>
       <div v-else class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>សិស្ស</th>
-              <th>មុខវិជ្ជា</th>
-              <th>ឆមាស</th>
-              <th>ពិន្ទុ</th>
-              <th>សកម្មភាព</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="item in filteredScores" :key="item.id">
-              <td>
-                <div class="student-cell">
-                  <span class="student-avatar" aria-hidden="true">
-                    {{ (item.first_name || "?").charAt(0).toUpperCase() }}
-                  </span>
-                  <div>
-                    <strong>{{ `${item.first_name || ""} ${item.last_name || ""}`.trim() || "មិនស្គាល់ឈ្មោះ" }}</strong>
-                    <span>{{ item.student_code || `ID: ${item.student_id}` }}</span>
-                  </div>
-                </div>
-              </td>
-              <td>{{ item.subject_name || `មុខវិជ្ជា #${item.subject_id}` }}</td>
-              <td>{{ item.semester || "—" }}</td>
-              <td>
-                <span class="score-value">{{ Number(item.score).toFixed(1) }}</span>
-                <span class="score-total">/ 100</span>
-              </td>
-              <td>
-                <div class="row-actions">
-                  <button
-                    class="icon-button edit-button"
-                    type="button"
-                    title="កែប្រែពិន្ទុ"
-                    aria-label="កែប្រែពិន្ទុ"
-                    @click="openEditModal(item)"
-                  >
-                    <i class="bi bi-pencil-square" aria-hidden="true"></i>
-                  </button>
-                  <button
-                    v-if="canDeleteScores"
-                    class="icon-button delete-button"
-                    type="button"
-                    title="លុបពិន្ទុ"
-                    aria-label="លុបពិន្ទុ"
-                    @click="openDeleteModal(item)"
-                  >
-                    <i class="bi bi-trash3" aria-hidden="true"></i>
-                  </button>
-                </div>
-              </td>
-            </tr>
-            <tr v-if="filteredScores.length === 0">
-              <td colspan="5" class="empty-state">
-                មិនមានទិន្នន័យពិន្ទុដែលត្រូវនឹងការស្វែងរកទេ
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <div v-if="!isHistoryView && selectedClass" class="selected-class-toolbar">
+          <BaseButton variant="secondary" icon="bi bi-arrow-left" type="button" @click="backToClasses">
+            ត្រឡប់ទៅបញ្ជីថ្នាក់
+          </BaseButton>
+          <span>{{ selectedClass.name }} · {{ selectedClassCard?.student_count || 0 }} សិស្ស</span>
+        </div>
+        <BaseTable
+          :columns="scoreTableColumns"
+          :items="filteredScores"
+          empty-text="មិនមានទិន្នន័យពិន្ទុដែលត្រូវនឹងការស្វែងរកទេ"
+        >
+          <template #cell-student="{ row }">
+            <div class="student-cell">
+              <img
+                v-if="getStudentAvatar(row)"
+                class="student-avatar student-avatar-image"
+                :src="getStudentAvatar(row)"
+                :alt="`រូប Profile របស់ ${`${row.first_name || ''} ${row.last_name || ''}`.trim() || 'សិស្ស'}`"
+              />
+              <span v-else class="student-avatar" aria-hidden="true">
+                {{ (row.first_name || "?").charAt(0).toUpperCase() }}
+              </span>
+              <div>
+                <strong>{{ `${row.first_name || ""} ${row.last_name || ""}`.trim() || "មិនស្គាល់ឈ្មោះ" }}</strong>
+                <span>{{ row.student_code || `ID: ${row.student_id}` }}</span>
+              </div>
+            </div>
+          </template>
+          <template #cell-subject="{ row }">
+            {{ row.subject_name || `មុខវិជ្ជា #${row.subject_id}` }}
+          </template>
+          <template #cell-class="{ row }">
+            {{ studentById.get(String(row.student_id))?.class_name || "មិនទាន់ចាត់ថ្នាក់" }}
+          </template>
+          <template #cell-semester="{ row }">{{ row.semester || "—" }}</template>
+          <template #cell-score="{ row }">
+            <span class="score-value">{{ Number(row.score).toFixed(1) }}</span>
+            <span class="score-total">/ 100</span>
+          </template>
+          <template #cell-actions="{ row }">
+            <div class="row-actions">
+              <BaseButton
+                variant="ghost"
+                size="sm"
+                icon="bi bi-pencil-square"
+                icon-only
+                icon-tone="edit"
+                type="button"
+                title="កែប្រែពិន្ទុ"
+                aria-label="កែប្រែពិន្ទុ"
+                @click="openEditModal(row)"
+              />
+              <BaseButton
+                v-if="canDeleteScores"
+                variant="ghost"
+                size="sm"
+                icon="bi bi-trash3"
+                icon-only
+                icon-tone="delete"
+                type="button"
+                title="លុបពិន្ទុ"
+                aria-label="លុបពិន្ទុ"
+                @click="openDeleteModal(row)"
+              />
+            </div>
+          </template>
+        </BaseTable>
       </div>
     </section>
 
@@ -324,12 +471,12 @@ onMounted(fetchData);
       :title="form.id ? 'កែប្រែពិន្ទុ' : 'បញ្ចូលពិន្ទុថ្មី'"
       @close="isFormModalOpen = false"
     >
-      <form class="modal-form" @submit.prevent="saveScore">
+      <form class="modal-form score-modal-form" @submit.prevent="saveScore">
         <div class="form-group">
           <label for="score-student">សិស្ស</label>
           <select id="score-student" v-model="form.student_id" required>
             <option value="" disabled>ជ្រើសរើសសិស្ស</option>
-            <option v-for="student in students" :key="student.id" :value="String(student.id)">
+            <option v-for="student in availableStudents" :key="student.id" :value="String(student.id)">
               {{ student.student_code ? `${student.student_code} — ` : "" }}
               {{ `${student.first_name || ""} ${student.last_name || ""}`.trim() || student.name || `សិស្ស #${student.id}` }}
             </option>
@@ -347,7 +494,7 @@ onMounted(fetchData);
         <div class="form-row">
           <div class="form-group">
             <label for="score-value">ពិន្ទុ (0–100)</label>
-            <input
+            <BaseInput
               id="score-value"
               v-model.number="form.score"
               type="number"
@@ -359,7 +506,7 @@ onMounted(fetchData);
           </div>
           <div class="form-group">
             <label for="score-semester">ឆមាស (ស្រេចចិត្ត)</label>
-            <input
+            <BaseInput
               id="score-semester"
               v-model="form.semester"
               type="text"
@@ -371,12 +518,12 @@ onMounted(fetchData);
         <p v-if="actionError" class="form-error" role="alert">{{ actionError }}</p>
       </form>
       <template #footer>
-        <button class="secondary-button" type="button" @click="isFormModalOpen = false">
+        <BaseButton variant="secondary" type="button" @click="isFormModalOpen = false">
           បោះបង់
-        </button>
-        <button class="primary-button" type="button" :disabled="saving" @click="saveScore">
+        </BaseButton>
+        <BaseButton variant="primary" type="button" :disabled="saving" @click="saveScore">
           {{ saving ? "កំពុងរក្សាទុក..." : "រក្សាទុក" }}
-        </button>
+        </BaseButton>
       </template>
     </BaseModal>
 
@@ -385,7 +532,7 @@ onMounted(fetchData);
       title="បញ្ជាក់ការលុបពិន្ទុ"
       @close="isDeleteModalOpen = false"
     >
-      <div class="delete-confirmation">
+      <div class="delete-confirmation score-delete-confirmation">
         <p>តើអ្នកពិតជាចង់លុបកំណត់ត្រាពិន្ទុនេះមែនទេ?</p>
         <strong v-if="selectedScore">
           {{ selectedScore.first_name }} {{ selectedScore.last_name }}
@@ -394,12 +541,12 @@ onMounted(fetchData);
         <p v-if="actionError" class="form-error" role="alert">{{ actionError }}</p>
       </div>
       <template #footer>
-        <button class="secondary-button" type="button" @click="isDeleteModalOpen = false">
+        <BaseButton variant="secondary" type="button" @click="isDeleteModalOpen = false">
           បោះបង់
-        </button>
-        <button class="danger-button" type="button" :disabled="deleting" @click="deleteScore">
+        </BaseButton>
+        <BaseButton variant="danger" type="button" :disabled="deleting" @click="deleteScore">
           {{ deleting ? "កំពុងលុប..." : "លុបពិន្ទុ" }}
-        </button>
+        </BaseButton>
       </template>
     </BaseModal>
   </div>
@@ -474,50 +621,6 @@ p {
   font-size: 13px;
 }
 
-.primary-button,
-.secondary-button,
-.danger-button,
-.retry-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 9px;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.primary-button {
-  background: #218455;
-  color: white;
-}
-
-.primary-button:hover:not(:disabled) {
-  background: #176b43;
-}
-
-.secondary-button {
-  border: 1px solid #dce7e0;
-  background: white;
-  color: #496357;
-}
-
-.danger-button {
-  background: #c53d43;
-  color: white;
-}
-
-.primary-button:disabled,
-.danger-button:disabled {
-  cursor: wait;
-  opacity: 0.65;
-}
-
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -582,6 +685,92 @@ p {
   box-shadow: 0 5px 18px rgb(23 70 49 / 4%);
 }
 
+.class-score-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 16px;
+  padding: 20px;
+}
+
+.class-score-card {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid #e4eee8;
+  border-radius: 12px;
+  background: #fff;
+  color: #344b40;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.class-score-card:hover,
+.class-score-card:focus-visible {
+  border-color: #8bc7a2;
+  box-shadow: 0 6px 18px rgb(23 70 49 / 9%);
+  outline: none;
+  transform: translateY(-2px);
+}
+
+.class-score-card:focus-visible {
+  outline: 3px solid rgb(22 131 75 / 22%);
+  outline-offset: 2px;
+}
+
+.class-score-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 12px;
+  background: #e7f4ec;
+  color: #218455;
+  font-size: 19px;
+}
+
+.class-score-name {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.class-score-description {
+  overflow: hidden;
+  width: 100%;
+  color: #819087;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.class-score-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: #64756b;
+  font-size: 11px;
+}
+
+.class-score-average {
+  color: #16834b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.selected-class-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid #edf2ef;
+  color: #64756b;
+  font-size: 12px;
+}
+
 .table-header {
   min-height: 82px;
   padding: 16px 20px;
@@ -635,28 +824,28 @@ p {
   -webkit-overflow-scrolling: touch;
 }
 
-table {
+:deep(.base-table) {
   width: 100%;
   min-width: 680px;
   border-collapse: collapse;
   text-align: left;
 }
 
-th,
-td {
+:deep(.base-table th),
+:deep(.base-table td) {
   padding: 14px 20px;
   border-bottom: 1px solid #edf2ef;
   font-size: 12px;
 }
 
-th {
+:deep(.base-table th) {
   background: #fbfdfb;
   color: #74867d;
   font-weight: 600;
   white-space: nowrap;
 }
 
-td {
+:deep(.base-table td) {
   color: #4e6359;
 }
 
@@ -670,8 +859,12 @@ tbody tr:last-child td {
 }
 
 .student-avatar {
+  display: grid;
+  flex: 0 0 34px;
   width: 34px;
   height: 34px;
+  place-items: center;
+  object-fit: cover;
   border-radius: 50%;
   background: #e7f4ec;
   color: #218455;
@@ -712,29 +905,6 @@ tbody tr:last-child td {
   gap: 7px;
 }
 
-.icon-button {
-  display: grid;
-  width: 31px;
-  height: 31px;
-  place-items: center;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  cursor: pointer;
-}
-
-.edit-button {
-  color: #4d82b4;
-}
-
-.delete-button {
-  color: #c45a5a;
-}
-
-.icon-button:hover {
-  background: #f2f6f3;
-}
-
 .empty-state,
 .state-message {
   padding: 38px 20px;
@@ -751,12 +921,6 @@ tbody tr:last-child td {
 .error-message,
 .form-error {
   color: #b43d43;
-}
-
-.retry-button {
-  min-height: 34px;
-  background: #e7f4ec;
-  color: #218455;
 }
 
 .sr-only {
@@ -845,6 +1009,11 @@ tbody tr:last-child td {
     width: 100%;
   }
 
+  .selected-class-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .filter-control {
     flex: 0 0 auto;
   }
@@ -893,7 +1062,7 @@ tbody tr:last-child td {
     font-size: 12px;
   }
 
-  .page-header > .primary-button {
+  .page-header > :deep(.base-btn) {
     width: 100%;
   }
 
@@ -919,7 +1088,7 @@ tbody tr:last-child td {
   }
 
   th,
-  td {
+  :deep(.base-table td) {
     padding: 12px 14px;
   }
 

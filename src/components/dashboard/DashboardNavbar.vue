@@ -1,9 +1,13 @@
 <script setup>
+import BaseButton from "@/components/ui/BaseButton.vue";
+import BaseInput from "@/components/ui/BaseInput.vue";
+import ThemeToggle from "@/components/ui/ThemeToggle.vue";
+
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth.store";
 
-const emit = defineEmits(["toggle-sidebar"]);
+const emit = defineEmits(["toggle-sidebar", "logout-request"]);
 const router = useRouter();
 const authStore = useAuthStore();
 
@@ -40,8 +44,7 @@ const goToProfile = () => {
 
 const handleLogout = () => {
   closeDropdown();
-  authStore.logout();
-  router.push("/login");
+  emit("logout-request");
 };
 
 const user = computed(() => {
@@ -62,13 +65,15 @@ const userRole = computed(() => {
 <template>
   <header class="navbar">
     <div class="navbar-left">
-      <button
+      <BaseButton
         class="menu-btn"
+        variant="ghost"
+        icon="bi bi-list"
+        icon-only
         @click="emit('toggle-sidebar')"
         title="បិទ/បើក Sidebar"
       >
-        <i class="bi bi-list"></i>
-      </button>
+      </BaseButton>
 
       <div class="page-heading">
         <h3>ផ្ទាំងគ្រប់គ្រង</h3>
@@ -79,16 +84,33 @@ const userRole = computed(() => {
     <div class="navbar-right">
       <div class="search-box">
         <i class="bi bi-search"></i>
-        <input type="text" placeholder="ស្វែងរក..." />
+        <BaseInput type="text" placeholder="ស្វែងរក..." />
       </div>
 
-      <button class="notification-btn" title="ការជូនដំណឹង">
-        <i class="bi bi-bell"></i>
+      <div class="notification-wrapper">
+        <BaseButton
+          class="notification-btn"
+          variant="ghost"
+          icon="bi bi-bell"
+          icon-only
+          title="ការជូនដំណឹង"
+          aria-label="ការជូនដំណឹង"
+        />
         <span class="notification-count">3</span>
-      </button>
+      </div>
+
+      <ThemeToggle />
 
       <div class="profile-wrapper" ref="dropdownRef">
-        <div class="profile" @click="toggleDropdown">
+        <button
+          class="profile"
+          type="button"
+          aria-haspopup="true"
+          aria-controls="profile-dropdown"
+          :aria-expanded="isDropdownOpen"
+          @click="toggleDropdown"
+          @keydown.esc.stop.prevent="closeDropdown"
+        >
           <div class="avatar">
             <img
               v-if="user.avatar_url || user.avatar"
@@ -110,25 +132,36 @@ const userRole = computed(() => {
             class="bi bi-chevron-down profile-arrow"
             :class="{ 'rotate-arrow': isDropdownOpen }"
           ></i>
-        </div>
+        </button>
 
         <transition name="dropdown-fade">
-          <div v-if="isDropdownOpen" class="dropdown-menu">
+          <div v-if="isDropdownOpen" id="profile-dropdown" class="profile-dropdown">
             <div class="dropdown-header">
-              <p class="dropdown-user-name">{{ userName }}</p>
-              <p class="dropdown-user-email">
-                {{ user.email || "user@example.com" }}
-              </p>
+              <div class="dropdown-avatar">
+                <img
+                  v-if="user.avatar_url || user.avatar"
+                  :src="user.avatar_url || user.avatar"
+                  alt=""
+                />
+                <span v-else>{{ userName.charAt(0).toUpperCase() }}</span>
+              </div>
+              <div class="dropdown-user-details">
+                <p class="dropdown-user-name">{{ userName }}</p>
+                <p class="dropdown-user-email">
+                  {{ user.email || "មិនមានអ៊ីមែល" }}
+                </p>
+                <span class="dropdown-user-role">{{ userRole }}</span>
+              </div>
             </div>
 
             <div class="dropdown-divider"></div>
 
-            <button class="dropdown-item" @click="goToProfile">
+            <button type="button" class="dropdown-item" @click="goToProfile">
               <i class="bi bi-person"></i>
               <span>ព័ត៌មានផ្ទាល់ខ្លួន (Profile)</span>
             </button>
 
-            <button class="dropdown-item logout-item" @click="handleLogout">
+            <button type="button" class="dropdown-item" @click="handleLogout">
               <i class="bi bi-box-arrow-right"></i>
               <span>ចាកចេញ (Logout)</span>
             </button>
@@ -161,23 +194,7 @@ const userRole = computed(() => {
 }
 
 .menu-btn {
-  width: 42px;
-  height: 42px;
-  border: none;
-  border-radius: 10px;
-  background: #f3f7f5;
-  color: #52625a;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 21px;
-  cursor: pointer;
-  transition: 0.2s;
-}
-
-.menu-btn:hover {
-  background: #e3f3ea;
-  color: #16834b;
+  flex: 0 0 auto;
 }
 
 .page-heading h3 {
@@ -233,13 +250,11 @@ const userRole = computed(() => {
 
 .notification-btn {
   position: relative;
-  width: 40px;
-  height: 40px;
-  border: none;
-  background: transparent;
-  color: #53635b;
-  font-size: 20px;
-  cursor: pointer;
+}
+
+.notification-wrapper {
+  position: relative;
+  display: flex;
 }
 
 .notification-count {
@@ -269,13 +284,23 @@ const userRole = computed(() => {
   gap: 9px;
   cursor: pointer;
   padding: 4px 8px;
-  border-radius: 8px;
-  transition: background 0.2s;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  border-radius: 10px;
+  transition: background 0.2s, box-shadow 0.2s;
   user-select: none;
 }
 
 .profile:hover {
   background: #f3f7f5;
+}
+
+.profile:focus-visible {
+  outline: 3px solid rgba(22, 131, 75, 0.2);
+  outline-offset: 2px;
 }
 
 .avatar {
@@ -321,86 +346,132 @@ const userRole = computed(() => {
   transform: rotate(180deg);
 }
 
-.dropdown-menu {
+.profile-dropdown {
+  display: block;
   position: absolute;
   right: 0;
-  top: calc(100% + 10px);
-  width: 210px;
+  top: calc(100% + 12px);
+  width: 264px;
+  max-width: calc(100vw - 24px);
   background: #ffffff;
-  border: 1px solid #e6ede9;
-  border-radius: 12px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-  padding: 8px 0;
+  border: 1px solid #e4ece7;
+  border-radius: 16px;
+  box-shadow: 0 16px 40px rgba(22, 47, 33, 0.16), 0 3px 10px rgba(22, 47, 33, 0.06);
+  padding: 8px;
   z-index: 9999;
 }
 
 .dropdown-header {
-  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+}
+
+.dropdown-avatar {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 2px solid #e3f2e8;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e4f5ea, #ccebd8);
+  color: #16834b;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.dropdown-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.dropdown-user-details {
+  min-width: 0;
 }
 
 .dropdown-user-name {
   margin: 0;
-  font-size: 12px;
-  font-weight: 700;
+  overflow: hidden;
   color: #1b2d25;
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dropdown-user-email {
-  margin: 2px 0 0 0;
-  font-size: 10px;
+  margin: 3px 0 0;
+  overflow: hidden;
   color: #8a9690;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-user-role {
+  display: inline-flex;
+  margin-top: 7px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #edf7f0;
+  color: #16834b;
+  font-size: 9px;
+  font-weight: 700;
 }
 
 .dropdown-divider {
   height: 1px;
-  background: #f0f4f2;
-  margin: 6px 0;
+  background: #edf1ee;
+  margin: 4px 2px 6px;
 }
 
 .dropdown-item {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 16px;
+  justify-content: flex-start;
+  gap: 11px;
+  min-height: 42px;
+  padding: 0 12px;
+  border-radius: 10px;
   background: transparent;
   border: none;
+  font-family: inherit;
   font-size: 12px;
+  font-weight: 600;
   color: #384840;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
   text-align: left;
 }
 
 .dropdown-item i {
-  font-size: 15px;
-  color: #6b7c73;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: #f0f5f2;
+  color: #607369;
+  font-size: 12px;
+  transition: background 0.18s ease, color 0.18s ease;
 }
 
 .dropdown-item:hover {
-  background: #f3f7f5;
+  background: #eff7f1;
   color: #16834b;
+  transform: translateX(2px);
 }
 
 .dropdown-item:hover i {
+  background: #dcefe2;
   color: #16834b;
-}
-
-.logout-item {
-  color: #dc2626;
-}
-
-.logout-item i {
-  color: #dc2626;
-}
-
-.logout-item:hover {
-  background: #fef2f2;
-  color: #b91c1c;
-}
-
-.logout-item:hover i {
-  color: #b91c1c;
 }
 
 .dropdown-fade-enter-active,
@@ -412,6 +483,23 @@ const userRole = computed(() => {
 .dropdown-fade-leave-to {
   opacity: 0;
   transform: translateY(-8px);
+}
+
+:global(:root[data-theme="dark"]) .navbar .page-heading h3,
+:global(:root[data-theme="dark"]) .navbar .profile-info strong,
+:global(:root[data-theme="dark"]) .navbar .dropdown-user-name {
+  color: #f1f7f3;
+}
+
+:global(:root[data-theme="dark"]) .navbar .page-heading span,
+:global(:root[data-theme="dark"]) .navbar .profile-info span,
+:global(:root[data-theme="dark"]) .navbar .profile-arrow,
+:global(:root[data-theme="dark"]) .navbar .dropdown-user-email {
+  color: #b7c8bd;
+}
+
+:global(:root[data-theme="dark"]) .navbar .profile:hover {
+  background: #26382b;
 }
 
 @media (max-width: 900px) {

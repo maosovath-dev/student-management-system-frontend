@@ -1,8 +1,12 @@
 <script setup>
 import { ref, reactive, onMounted } from "vue";
 import { useAuthStore } from "@/stores/auth.store";
+import BaseButton from "@/components/ui/BaseButton.vue";
+import BaseInput from "@/components/ui/BaseInput.vue";
+import { useToast } from "@/composables/useToast";
 
 const authStore = useAuthStore();
+const { showToast } = useToast();
 
 // Form States (Admin មានតែ Name និង Email ប៉ុណ្ណោះ គ្មាន Phone)
 const form = reactive({
@@ -14,7 +18,6 @@ const form = reactive({
 const fileInput = ref(null);
 const selectedFile = ref(null);
 const avatarPreview = ref(null);
-const message = ref({ type: "", text: "" });
 
 // បំបែក Name ទៅជា First Name & Last Name
 const splitName = (fullName) => {
@@ -30,7 +33,7 @@ onMounted(async () => {
   try {
     await authStore.fetchProfile();
   } catch (err) {
-    console.error(err);
+    showMessage("error", err?.message || err || "មិនអាចទាញយកព័ត៌មាន Profile បានទេ!");
   }
 
   if (authStore.user) {
@@ -42,7 +45,7 @@ onMounted(async () => {
 });
 
 const triggerAvatarClick = () => {
-  fileInput.value.click();
+  fileInput.value?.inputRef?.click();
 };
 
 const handleFileChange = (event) => {
@@ -68,7 +71,7 @@ const handleRemoveAvatar = async () => {
     await authStore.deleteAvatar();
     avatarPreview.value = null;
     selectedFile.value = null;
-    if (fileInput.value) fileInput.value.value = "";
+    if (fileInput.value?.inputRef) fileInput.value.inputRef.value = "";
     showMessage("success", "បានលុបរូបភាព Profile ចោលជោគជ័យ!");
   } catch (err) {
     showMessage("error", err || "មិនអាចលុបរូបភាពបានទេ!");
@@ -89,7 +92,7 @@ const handleSave = async () => {
     if (selectedFile.value) {
       await authStore.changeAvatar(selectedFile.value);
       selectedFile.value = null;
-      if (fileInput.value) fileInput.value.value = "";
+      if (fileInput.value?.inputRef) fileInput.value.inputRef.value = "";
     }
 
     showMessage("success", "រក្សាទុកការផ្លាស់ប្តូរជោគជ័យ!");
@@ -108,10 +111,7 @@ const handleCancel = () => {
 };
 
 const showMessage = (type, text) => {
-  message.value = { type, text };
-  setTimeout(() => {
-    message.value = { type: "", text: "" };
-  }, 3500);
+  showToast(String(text), type);
 };
 </script>
 
@@ -119,14 +119,6 @@ const showMessage = (type, text) => {
   <div class="profile-page-wrapper">
     <div class="account-card">
       <h1 class="page-title">គណនីផ្ទាល់ខ្លួន</h1>
-
-      <!-- Alert Notification -->
-      <transition name="fade">
-        <div v-if="message.text" :class="['alert-toast', message.type]">
-          <i :class="message.type === 'success' ? 'bi bi-check-circle-fill' : 'bi bi-exclamation-triangle-fill'"></i>
-          <span>{{ message.text }}</span>
-        </div>
-      </transition>
 
       <!-- Profile Picture Section -->
       <section class="section-block">
@@ -146,26 +138,26 @@ const showMessage = (type, text) => {
           <div class="avatar-actions">
             <h3 class="block-title">រូបថតផ្ទាល់ខ្លួន (Profile Picture)</h3>
             <div class="button-group">
-              <button
+              <BaseButton
                 type="button"
-                class="btn-main-upload"
+                variant="primary"
+                icon="bi bi-upload"
                 @click="triggerAvatarClick"
                 :disabled="authStore.loading"
               >
-                <i class="bi bi-upload"></i>
-                <span>Upload Image</span>
-              </button>
+                Upload Image
+              </BaseButton>
 
-              <button
+              <BaseButton
                 type="button"
-                class="btn-outline-remove"
+                variant="danger"
                 @click="handleRemoveAvatar"
                 :disabled="authStore.loading"
               >
                 Remove
-              </button>
+              </BaseButton>
 
-              <input
+              <BaseInput
                 type="file"
                 ref="fileInput"
                 accept="image/*"
@@ -182,7 +174,7 @@ const showMessage = (type, text) => {
       <section class="section-block grid-2-col">
         <div class="form-field">
           <label>នាមត្រកូល (First Name)</label>
-          <input
+          <BaseInput
             v-model="form.firstName"
             type="text"
             placeholder="បញ្ចូលនាមត្រកូល"
@@ -191,7 +183,7 @@ const showMessage = (type, text) => {
 
         <div class="form-field">
           <label>នាមខ្លួន (Last Name)</label>
-          <input
+          <BaseInput
             v-model="form.lastName"
             type="text"
             placeholder="បញ្ចូលនាមខ្លួន"
@@ -204,13 +196,13 @@ const showMessage = (type, text) => {
         <div class="form-field">
           <label>អ៊ីមែល (Email)</label>
           <div class="input-with-button">
-            <input
+            <BaseInput
               v-model="form.email"
               type="email"
               disabled
               placeholder="admin@example.com"
             />
-            <button type="button" class="btn-secondary-edit" disabled>Edit Email</button>
+            <BaseButton type="button" variant="secondary" size="sm" disabled>Edit Email</BaseButton>
           </div>
           <p class="hint-text">ប្រព័ន្ធប្រើប្រាស់អ៊ីមែលនេះសម្រាប់ចូលប្រព័ន្ធ ( Readonly )</p>
         </div>
@@ -224,23 +216,23 @@ const showMessage = (type, text) => {
           <h3 class="block-title-sub">ពាក្យសម្ងាត់ (Password)</h3>
           <p class="hint-text">ចូលប្រព័ន្ធដោយប្រើពាក្យសម្ងាត់របស់អ្នក</p>
         </div>
-        <button type="button" class="btn-outline-change">Change Password</button>
+        <BaseButton type="button" variant="outline">Change Password</BaseButton>
       </section>
 
       <hr class="divider" />
 
       <!-- Bottom Action Buttons -->
       <div class="bottom-actions">
-        <button type="button" class="btn-cancel" @click="handleCancel">បោះបង់ (Cancel)</button>
-        <button
+        <BaseButton type="button" variant="secondary" @click="handleCancel">បោះបង់ (Cancel)</BaseButton>
+        <BaseButton
           type="button"
-          class="btn-main-save"
+          variant="primary"
           @click="handleSave"
           :disabled="authStore.loading"
         >
           <span v-if="authStore.loading">កំពុងរក្សាទុក...</span>
           <span v-else>រក្សាទុក (Save)</span>
-        </button>
+        </BaseButton>
       </div>
     </div>
   </div>
@@ -321,43 +313,6 @@ const showMessage = (type, text) => {
   gap: 12px;
 }
 
-/* Main Theme Color Buttons (#16834b) */
-.btn-main-upload {
-  background: #16834b;
-  color: white;
-  border: none;
-  padding: 8px 18px;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: background 0.2s;
-}
-
-.btn-main-upload:hover {
-  background: #11683b;
-}
-
-.btn-outline-remove {
-  background: white;
-  border: 1px solid #dfe8e3;
-  padding: 8px 16px;
-  border-radius: 10px;
-  font-size: 13px;
-  color: #52625a;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-outline-remove:hover {
-  background: #f8faf9;
-  border-color: #cbd8d1;
-  color: #dc2626;
-}
-
 .hint-text {
   font-size: 12px;
   color: #8a9690;
@@ -411,16 +366,6 @@ const showMessage = (type, text) => {
   cursor: not-allowed;
 }
 
-.btn-secondary-edit {
-  background: white;
-  border: 1px solid #dfe8e3;
-  padding: 0 16px;
-  border-radius: 10px;
-  font-size: 13px;
-  color: #8a9690;
-  cursor: not-allowed;
-}
-
 .divider {
   border: none;
   border-top: 1px solid #e6ede9;
@@ -441,23 +386,6 @@ const showMessage = (type, text) => {
   margin: 0;
 }
 
-.btn-outline-change {
-  background: white;
-  border: 1px solid #dfe8e3;
-  padding: 9px 18px;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #27372f;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.btn-outline-change:hover {
-  background: #f3f7f5;
-  color: #16834b;
-}
-
 /* Bottom Actions */
 .bottom-actions {
   display: flex;
@@ -466,71 +394,9 @@ const showMessage = (type, text) => {
   margin-top: 28px;
 }
 
-.btn-cancel {
-  background: white;
-  border: 1px solid #dfe8e3;
-  padding: 10px 20px;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #52625a;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.btn-cancel:hover {
-  background: #f8faf9;
-}
-
-.btn-main-save {
-  background: #16834b;
-  color: white;
-  border: none;
-  padding: 10px 24px;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.btn-main-save:hover {
-  background: #11683b;
-}
 
 .hidden {
   display: none;
-}
-
-/* Alert Toast Style */
-.alert-toast {
-  padding: 12px 16px;
-  border-radius: 10px;
-  margin-bottom: 20px;
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.alert-toast.success {
-  background: #e3f4ea;
-  color: #16834b;
-}
-
-.alert-toast.error {
-  background: #fef2f2;
-  color: #dc2626;
-}
-
-/* Animation */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
 }
 
 @media (max-width: 640px) {

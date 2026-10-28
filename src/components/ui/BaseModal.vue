@@ -19,7 +19,9 @@
             <h3 class="base-modal__title">
               <slot name="title">{{ title }}</slot>
             </h3>
-            <button
+            <BaseButton
+              variant="ghost"
+              size="sm"
               type="button"
               class="base-modal__close"
               @click="close" 
@@ -28,7 +30,7 @@
               <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
-            </button>
+            </BaseButton>
           </div>
 
           <!-- Body -->
@@ -47,6 +49,8 @@
 </template>
 
 <script setup>
+import BaseButton from "@/components/ui/BaseButton.vue";
+
 const props = defineProps({
   isOpen: {
     type: Boolean,

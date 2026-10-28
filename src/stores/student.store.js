@@ -1,5 +1,8 @@
 import { defineStore } from 'pinia';
 import { studentApi } from '../api/student';
+import { useToast } from "@/composables/useToast";
+
+const { showToast } = useToast();
 
 export const useStudentStore = defineStore('student', {
   state: () => ({
@@ -18,6 +21,7 @@ export const useStudentStore = defineStore('student', {
         this.students = response.data.data;
       } catch (err) {
         this.error = err.response?.data?.message || err.message;
+        showToast(this.error || "មិនអាចទាញយកបញ្ជីសិស្សបានទេ។", "error");
       } finally {
         this.loading = false;
       }

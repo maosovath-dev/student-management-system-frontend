@@ -2,8 +2,13 @@
 import { ref, computed, onMounted, watch } from "vue";
 import { api } from "@/api/api";
 import { useRoute, useRouter } from "vue-router";
+import BaseButton from "@/components/ui/BaseButton.vue";
+import BaseInput from "@/components/ui/BaseInput.vue";
+import BaseTable from "@/components/ui/BaseTable.vue";
 import BaseModal from "@/components/ui/BaseModal.vue";
+import { useToast } from "@/composables/useToast";
 
+const { showToast } = useToast();
 // -------------------------------------------------------------
 // 1. STATES
 // -------------------------------------------------------------
@@ -39,6 +44,22 @@ const historyClassId = ref("");
 const historySubjectId = ref("");
 const historySearch = ref("");
 const historyDate = ref("");
+const historyTableColumns = [
+  { key: "student", label: "សិស្ស" },
+  { key: "code", label: "កូដសិស្ស" },
+  { key: "class", label: "ថ្នាក់" },
+  { key: "subject", label: "មុខវិជ្ជា" },
+  { key: "date", label: "កាលបរិច្ឆេទ" },
+  { key: "status", label: "ស្ថានភាព" },
+  { key: "actions", label: "សកម្មភាព" },
+];
+const classAttendanceTableColumns = [
+  { key: "number", label: "#" },
+  { key: "student", label: "ឈ្មោះសិស្ស" },
+  { key: "code", label: "កូដសិស្ស" },
+  { key: "date", label: "កាលបរិច្ឆេទ" },
+  { key: "attendance", label: "ជ្រើសរើសវត្តមាន", align: "center" },
+];
 
 const selectedSubjectId = ref(""); // ID មុខវិជ្ជាដែលបានជ្រើសរើស
 const localDate = new Date();
@@ -339,8 +360,10 @@ const deleteHistoryRecord = async () => {
     );
     isHistoryDeleteOpen.value = false;
     selectedHistoryRecord.value = null;
+    showToast("បានលុបកំណត់ត្រាវត្តមានជោគជ័យ។", "success");
   } catch (error) {
     historyDeleteError.value = `មិនអាចលុបកំណត់ត្រាវត្តមានបានទេ៖ ${getErrorMessage(error)}`;
+    showToast(historyDeleteError.value, "error");
   } finally {
     deletingAttendance.value = false;
   }
@@ -350,6 +373,7 @@ const saveHistoryEdit = async () => {
   if (!selectedHistoryRecord.value) return;
   if (!historyEditForm.value.date || !historyEditForm.value.subject_id || !historyEditForm.value.status) {
     historyActionError.value = "សូមបំពេញកាលបរិច្ឆេទ មុខវិជ្ជា និងស្ថានភាព។";
+    showToast(historyActionError.value, "warning");
     return;
   }
 
@@ -366,8 +390,10 @@ const saveHistoryEdit = async () => {
     isHistoryEditOpen.value = false;
     selectedHistoryRecord.value = null;
     await fetchAttendanceHistory();
+    showToast("បានកែប្រែកំណត់ត្រាវត្តមានជោគជ័យ។", "success");
   } catch (error) {
     historyActionError.value = `មិនអាចកែប្រែកំណត់ត្រាបានទេ៖ ${getErrorMessage(error)}`;
+    showToast(historyActionError.value, "error");
   } finally {
     savingHistoryEdit.value = false;
   }
@@ -458,6 +484,7 @@ const backToClasses = () => {
 const updateStatus = (item, newStatus) => {
   if (!selectedSubjectId.value) {
     pageError.value = "សូមបន្ថែមមុខវិជ្ជា មុនពេលកត់ត្រាវត្តមាន។";
+    showToast(pageError.value, "warning");
     return;
   }
   if (savingAttendance.value || item.status === newStatus) return;
@@ -471,6 +498,7 @@ const submitAttendance = async () => {
   if (savingAttendance.value || pendingAttendance.value.length === 0) return;
   if (!selectedSubjectId.value || !selectedClass.value) {
     pageError.value = "សូមជ្រើសរើសថ្នាក់ និងមុខវិជ្ជា មុនពេលដាក់ស្នើវត្តមាន។";
+    showToast(pageError.value, "warning");
     return;
   }
 
@@ -509,8 +537,13 @@ const submitAttendance = async () => {
 
     if (failedRecords.length > 0) {
       pageError.value = `បានរក្សាទុក ${savedCount} នាក់។ មិនអាចរក្សាទុក ${failedRecords.length} នាក់បានទេ៖ ${failedRecords.join(" · ")}`;
+      showToast(
+        `បានរក្សាទុក ${savedCount} នាក់; បរាជ័យ ${failedRecords.length} នាក់។`,
+        savedCount ? "warning" : "error"
+      );
     } else {
       attendanceNotice.value = `បានដាក់ស្នើវត្តមានសិស្ស ${savedCount} នាក់ដោយជោគជ័យ។`;
+      showToast(attendanceNotice.value, "success");
     }
   } finally {
     savingAttendance.value = false;
@@ -532,10 +565,9 @@ const submitAttendance = async () => {
             <p>ស្វែងរក និងពិនិត្យមើលកំណត់ត្រាវត្តមានសិស្ស</p>
           </div>
         </div>
-        <button class="btn-take-attendance" type="button" @click="openTakeAttendance">
-          <i class="bi bi-plus-lg"></i>
+        <BaseButton variant="primary" icon="bi bi-plus-lg" type="button" @click="openTakeAttendance">
           កត់ត្រាវត្តមាន
-        </button>
+        </BaseButton>
       </div>
 
       <div v-if="pageError" class="warning-message" role="status">
@@ -545,7 +577,7 @@ const submitAttendance = async () => {
       <div class="history-filters">
         <label class="history-filter">
           <span>កាលបរិច្ឆេទ</span>
-          <input type="date" v-model="historyDate" @change="fetchAttendanceHistory" />
+          <BaseInput type="date" v-model="historyDate" @change="fetchAttendanceHistory" />
         </label>
         <label class="history-filter">
           <span>ថ្នាក់រៀន</span>
@@ -567,7 +599,7 @@ const submitAttendance = async () => {
         </label>
         <label class="history-filter search-filter">
           <span>ស្វែងរក</span>
-          <input
+          <BaseInput
             v-model="historySearch"
             type="search"
             placeholder="ឈ្មោះ កូដសិស្ស ឬថ្នាក់..."
@@ -577,11 +609,11 @@ const submitAttendance = async () => {
 
       <div v-if="historyError" class="error-message" role="alert">
         {{ historyError }}
-        <button type="button" @click="fetchAttendanceHistory">ព្យាយាមម្ដងទៀត</button>
+        <BaseButton variant="outline" type="button" @click="fetchAttendanceHistory">ព្យាយាមម្ដងទៀត</BaseButton>
       </div>
       <div v-else-if="historyActionError" class="error-message" role="alert">
         {{ historyActionError }}
-        <button type="button" @click="historyActionError = ''">បិទ</button>
+        <BaseButton variant="secondary" type="button" @click="historyActionError = ''">បិទ</BaseButton>
       </div>
       <div v-else-if="historyLoading" class="loading-state" role="status">
         កំពុងទាញយកប្រវត្តិវត្តមាន...
@@ -591,85 +623,73 @@ const submitAttendance = async () => {
           កំណត់ត្រាចំនួន <strong>{{ filteredHistory.length }}</strong>
         </div>
         <div class="table-responsive">
-          <table class="data-table history-table">
-            <thead>
-              <tr>
-                <th>សិស្ស</th>
-                <th>កូដសិស្ស</th>
-                <th>ថ្នាក់</th>
-                <th>មុខវិជ្ជា</th>
-                <th>កាលបរិច្ឆេទ</th>
-                <th>ស្ថានភាព</th>
-                <th>សកម្មភាព</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="record in filteredHistory" :key="record.id">
-                <td>
-                  <div class="student-profile">
-                    <div class="avatar-sm">
-                      <img
-                        v-if="getStudentAvatar(record)"
-                        :src="getStudentAvatar(record)"
-                        :alt="`រូប Profile របស់ ${getStudentName(record)}`"
-                      />
-                      <i v-else class="bi bi-person-fill" aria-hidden="true"></i>
-                    </div>
-                    <strong>{{ getStudentName(record) }}</strong>
-                  </div>
-                </td>
-                <td><span class="badge-code">{{ getStudentCode(record) }}</span></td>
-                <td>{{ record.class_name || "—" }}</td>
-                <td>{{ record.subject_name || "—" }}</td>
-                <td>{{ String(record.date).slice(0, 10) }}</td>
-                <td>
-                  <span :class="['status-badge', `status-${record.status}`]">
-                    {{ displayStatus(record.status) }}
-                  </span>
-                </td>
-                <td>
-                  <div class="history-actions">
-                    <button
-                      type="button"
-                      class="history-action view-action"
-                      title="មើលព័ត៌មាន"
-                      aria-label="មើលព័ត៌មានវត្តមាន"
-                      @click="openHistoryDetails(record)"
-                    >
-                      <i class="bi bi-eye" aria-hidden="true"></i>
-                      <span>មើល</span>
-                    </button>
-                    <button
-                      type="button"
-                      class="history-action edit-action"
-                      title="កែប្រែវត្តមាន"
-                      aria-label="កែប្រែវត្តមាន"
-                      @click="openHistoryEdit(record)"
-                    >
-                      <i class="bi bi-pencil-square" aria-hidden="true"></i>
-                      <span>កែប្រែ</span>
-                    </button>
-                    <button
-                      v-if="isAdmin"
-                      type="button"
-                      class="history-action delete-action"
-                      title="លុបវត្តមាន"
-                      aria-label="លុបកំណត់ត្រាវត្តមាន"
-                      @click="openHistoryDelete(record)"
-                    >
-                      <i class="bi bi-trash3" aria-hidden="true"></i>
-                      <span>លុប</span>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-              <tr v-if="filteredHistory.length === 0">
-                <td colspan="7" class="empty-history">
-                  មិនមានកំណត់ត្រាវត្តមានដែលត្រូវនឹងលក្ខខណ្ឌស្វែងរកទេ
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <BaseTable
+            :columns="historyTableColumns"
+            :items="filteredHistory"
+            table-class="data-table history-table"
+            empty-text="មិនមានកំណត់ត្រាវត្តមានដែលត្រូវនឹងលក្ខខណ្ឌស្វែងរកទេ"
+          >
+            <template #cell-student="{ row }">
+              <div class="student-profile">
+                <div class="avatar-sm">
+                  <img
+                    v-if="getStudentAvatar(row)"
+                    :src="getStudentAvatar(row)"
+                    :alt="`រូប Profile របស់ ${getStudentName(row)}`"
+                  />
+                  <i v-else class="bi bi-person-fill" aria-hidden="true"></i>
+                </div>
+                <strong>{{ getStudentName(row) }}</strong>
+              </div>
+            </template>
+            <template #cell-code="{ row }"><span class="badge-code">{{ getStudentCode(row) }}</span></template>
+            <template #cell-class="{ row }">{{ row.class_name || "—" }}</template>
+            <template #cell-subject="{ row }">{{ row.subject_name || "—" }}</template>
+            <template #cell-date="{ row }">{{ String(row.date).slice(0, 10) }}</template>
+            <template #cell-status="{ row }">
+              <span :class="['status-badge', `status-${row.status}`]">
+                {{ displayStatus(row.status) }}
+              </span>
+            </template>
+            <template #cell-actions="{ row }">
+              <div class="history-actions">
+                <BaseButton
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  icon="bi bi-eye"
+                  icon-only
+                  icon-tone="view"
+                  title="មើលព័ត៌មាន"
+                  aria-label="មើលព័ត៌មានវត្តមាន"
+                  @click="openHistoryDetails(row)"
+                />
+                <BaseButton
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  icon="bi bi-pencil-square"
+                  icon-only
+                  icon-tone="edit"
+                  title="កែប្រែវត្តមាន"
+                  aria-label="កែប្រែវត្តមាន"
+                  @click="openHistoryEdit(row)"
+                />
+                <BaseButton
+                  v-if="isAdmin"
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  icon="bi bi-trash3"
+                  icon-only
+                  icon-tone="delete"
+                  title="លុបវត្តមាន"
+                  aria-label="លុបកំណត់ត្រាវត្តមាន"
+                  @click="openHistoryDelete(row)"
+                />
+              </div>
+            </template>
+          </BaseTable>
         </div>
       </div>
     </section>
@@ -717,17 +737,19 @@ const submitAttendance = async () => {
         {{ historyActionError }}
       </p>
       <template #footer>
-        <button
-          class="history-action edit-action"
+        <BaseButton
+          variant="ghost"
+          size="sm"
+          icon="bi bi-pencil-square"
+          icon-tone="edit"
           type="button"
           @click="editHistoryRecordFromDetails"
         >
-          <i class="bi bi-pencil-square" aria-hidden="true"></i>
           កែប្រែ
-        </button>
-        <button class="history-close-button" type="button" @click="isHistoryDetailsOpen = false">
+        </BaseButton>
+        <BaseButton variant="secondary" type="button" @click="isHistoryDetailsOpen = false">
           បិទ
-        </button>
+        </BaseButton>
       </template>
     </BaseModal>
 
@@ -743,7 +765,7 @@ const submitAttendance = async () => {
         </p>
         <label class="history-edit-field">
           <span>កាលបរិច្ឆេទ</span>
-          <input v-model="historyEditForm.date" type="date" required />
+          <BaseInput v-model="historyEditForm.date" type="date" required />
         </label>
         <label class="history-edit-field">
           <span>មុខវិជ្ជា</span>
@@ -771,22 +793,22 @@ const submitAttendance = async () => {
         </p>
       </div>
       <template #footer>
-        <button
-          class="history-close-button"
+        <BaseButton
+          variant="secondary"
           type="button"
           :disabled="savingHistoryEdit"
           @click="isHistoryEditOpen = false"
         >
           បោះបង់
-        </button>
-        <button
-          class="history-save-button"
+        </BaseButton>
+        <BaseButton
+          variant="primary"
           type="button"
           :disabled="savingHistoryEdit"
           @click="saveHistoryEdit"
         >
           {{ savingHistoryEdit ? "កំពុងរក្សាទុក..." : "រក្សាទុក" }}
-        </button>
+        </BaseButton>
       </template>
     </BaseModal>
 
@@ -809,22 +831,22 @@ const submitAttendance = async () => {
         </p>
       </div>
       <template #footer>
-        <button
-          class="history-close-button"
+        <BaseButton
+          variant="secondary"
           type="button"
           :disabled="deletingAttendance"
           @click="isHistoryDeleteOpen = false"
         >
           បោះបង់
-        </button>
-        <button
-          class="history-delete-button"
+        </BaseButton>
+        <BaseButton
+          variant="danger"
           type="button"
           :disabled="deletingAttendance || !isAdmin"
           @click="deleteHistoryRecord"
         >
           {{ deletingAttendance ? "កំពុងលុប..." : "លុបវត្តមាន" }}
-        </button>
+        </BaseButton>
       </template>
     </BaseModal>
 
@@ -858,14 +880,14 @@ const submitAttendance = async () => {
           <!-- Filter កាលបរិច្ឆេទ -->
           <div class="date-picker-box">
             <i class="bi bi-calendar3"></i>
-            <input type="date" v-model="filterDate" @change="onFilterChange" />
+            <BaseInput type="date" v-model="filterDate" @change="onFilterChange" />
           </div>
         </div>
       </div>
 
       <div v-if="pageError" class="error-message" role="alert">
         {{ pageError }}
-        <button type="button" @click="retryLoadClasses">ព្យាយាមម្ដងទៀត</button>
+        <BaseButton variant="outline" type="button" @click="retryLoadClasses">ព្យាយាមម្ដងទៀត</BaseButton>
       </div>
       <div v-else-if="classesLoading" class="loading-state" role="status">
         កំពុងទាញយកទិន្នន័យថ្នាក់រៀន...
@@ -913,9 +935,14 @@ const submitAttendance = async () => {
     <div v-if="!isHistoryView && selectedClass">
       <div class="page-header">
         <div class="header-title">
-          <button class="btn-back" @click="backToClasses" title="ត្រឡប់ក្រោយ">
-            <i class="bi bi-arrow-left"></i>
-          </button>
+          <BaseButton
+            variant="ghost"
+            icon="bi bi-arrow-left"
+            icon-only
+            title="ត្រឡប់ក្រោយ"
+            aria-label="ត្រឡប់ក្រោយ"
+            @click="backToClasses"
+          />
           <div>
             <h2>ថ្នាក់រៀន៖ {{ selectedClass.name }}</h2>
             <p>កាលបរិច្ឆេទ៖ {{ filterDate }}</p>
@@ -936,7 +963,7 @@ const submitAttendance = async () => {
 
           <div class="search-box">
             <i class="bi bi-search"></i>
-            <input
+            <BaseInput
               type="text"
               v-model="searchQuery"
               placeholder="ស្វែងរកឈ្មោះ ឬកូដសិស្ស..."
@@ -947,7 +974,7 @@ const submitAttendance = async () => {
 
       <div v-if="pageError" class="error-message" role="alert">
         {{ pageError }}
-        <button type="button" @click="fetchClassAttendance(selectedClass)">ព្យាយាមម្ដងទៀត</button>
+        <BaseButton variant="outline" type="button" @click="fetchClassAttendance(selectedClass)">ព្យាយាមម្ដងទៀត</BaseButton>
       </div>
       <div v-if="attendanceNotice" class="attendance-notice" role="status">
         {{ attendanceNotice }}
@@ -966,93 +993,75 @@ const submitAttendance = async () => {
               : "មិនមានការកែប្រែមិនទាន់ដាក់ស្នើ"
             }}
           </span>
-          <button
+          <BaseButton
             type="button"
+            variant="primary"
+            :icon="savingAttendance ? 'bi bi-arrow-repeat' : 'bi bi-send-check'"
             class="submit-attendance-button"
             :disabled="pendingAttendance.length === 0 || savingAttendance || loading || !selectedSubjectId"
             @click="submitAttendance"
           >
-            <i
-              :class="['bi', savingAttendance ? 'bi-arrow-repeat' : 'bi-send-check']"
-              aria-hidden="true"
-            ></i>
             {{ savingAttendance ? attendanceSaveProgress : "ដាក់ស្នើវត្តមាន" }}
-          </button>
+          </BaseButton>
         </div>
         <div class="table-responsive">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>ឈ្មោះសិស្ស</th>
-                <th>កូដសិស្ស</th>
-                <th>កាលបរិច្ឆេទ</th>
-                <th class="text-center">ជ្រើសរើសវត្តមាន</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="loading">
-                <td colspan="5" class="text-center py-4">កំពុងទាញយកបញ្ជីសិស្ស...</td>
-              </tr>
-              <tr v-else-if="filteredStudents.length === 0">
-                <td colspan="5" class="text-center py-4 text-muted">មិនមានសិស្សក្នុងថ្នាក់នេះឡើយ</td>
-              </tr>
-              <tr
-                v-else
-                v-for="(item, index) in filteredStudents"
-                :key="item.id || item.student_id || index"
-              >
-                <td>{{ index + 1 }}</td>
-                <td>
-                  <div class="student-profile">
-                    <div class="avatar-sm">
-                      <img
-                        v-if="getStudentAvatar(item)"
-                        :src="getStudentAvatar(item)"
-                        :alt="`រូប Profile របស់ ${getStudentName(item)}`"
-                      />
-                      <i v-else class="bi bi-person-fill" aria-hidden="true"></i>
-                    </div>
-                    <strong>{{ getStudentName(item) }}</strong>
-                  </div>
-                </td>
-                <td>
-                  <span class="badge-code">{{ getStudentCode(item) }}</span>
-                </td>
-                <td>{{ filterDate }}</td>
-                <td>
-                  <div class="attendance-toggle-group">
-                    <button
-                      type="button"
-                      :class="['toggle-btn', 'present', { active: item.status === 'present' }]"
-                      :disabled="!selectedSubjectId || savingAttendance"
-                      @click="updateStatus(item, 'present')"
-                    >
-                      <i class="bi bi-check-circle-fill"></i> មានវត្តមាន
-                    </button>
-
-                    <button
-                      type="button"
-                      :class="['toggle-btn', 'absent', { active: item.status === 'absent' }]"
-                      :disabled="!selectedSubjectId || savingAttendance"
-                      @click="updateStatus(item, 'absent')"
-                    >
-                      <i class="bi bi-x-circle-fill"></i> អវត្តមាន
-                    </button>
-
-                    <button
-                      type="button"
-                      :class="['toggle-btn', 'late', { active: item.status === 'late' }]"
-                      :disabled="!selectedSubjectId || savingAttendance"
-                      @click="updateStatus(item, 'late')"
-                    >
-                      <i class="bi bi-clock-fill"></i> មកយឺត
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <BaseTable
+            :columns="classAttendanceTableColumns"
+            :items="filteredStudents"
+            :loading="loading"
+            table-class="data-table"
+            empty-text="មិនមានសិស្សក្នុងថ្នាក់នេះឡើយ"
+          >
+            <template #cell-number="{ index }">{{ index + 1 }}</template>
+            <template #cell-student="{ row }">
+              <div class="student-profile">
+                <div class="avatar-sm">
+                  <img
+                    v-if="getStudentAvatar(row)"
+                    :src="getStudentAvatar(row)"
+                    :alt="`រូប Profile របស់ ${getStudentName(row)}`"
+                  />
+                  <i v-else class="bi bi-person-fill" aria-hidden="true"></i>
+                </div>
+                <strong>{{ getStudentName(row) }}</strong>
+              </div>
+            </template>
+            <template #cell-code="{ row }">
+              <span class="badge-code">{{ getStudentCode(row) }}</span>
+            </template>
+            <template #cell-date>{{ filterDate }}</template>
+            <template #cell-attendance="{ row }">
+              <div class="attendance-toggle-group">
+                <BaseButton
+                  type="button"
+                  variant="ghost"
+                  :class="['toggle-btn', 'present', { active: row.status === 'present' }]"
+                  :disabled="!selectedSubjectId || savingAttendance"
+                  @click="updateStatus(row, 'present')"
+                >
+                  <i class="bi bi-check-circle-fill"></i> មានវត្តមាន
+                </BaseButton>
+                <BaseButton
+                  type="button"
+                  variant="ghost"
+                  :class="['toggle-btn', 'absent', { active: row.status === 'absent' }]"
+                  :disabled="!selectedSubjectId || savingAttendance"
+                  @click="updateStatus(row, 'absent')"
+                >
+                  <i class="bi bi-x-circle-fill"></i> អវត្តមាន
+                </BaseButton>
+                <BaseButton
+                  type="button"
+                  variant="ghost"
+                  :class="['toggle-btn', 'late', { active: row.status === 'late' }]"
+                  :disabled="!selectedSubjectId || savingAttendance"
+                  @click="updateStatus(row, 'late')"
+                >
+                  <i class="bi bi-clock-fill"></i> មកយឺត
+                </BaseButton>
+              </div>
+            </template>
+          </BaseTable>
         </div>
       </div>
     </div>
@@ -1108,83 +1117,13 @@ const submitAttendance = async () => {
   color: #16834b;
 }
 
-.history-table {
+:deep(.history-table) {
   min-width: 680px;
 }
 
 .history-actions {
   display: flex;
   gap: 6px;
-}
-
-.history-action,
-.history-close-button,
-.history-save-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 34px;
-  padding: 0 10px;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.view-action {
-  border-color: #dce8f4;
-  background: #f2f7fc;
-  color: #356b9a;
-}
-
-.edit-action {
-  border-color: #d3eadc;
-  background: #eff8f2;
-  color: #16834b;
-}
-
-.delete-action {
-  border-color: #f2d4d4;
-  background: #fff5f5;
-  color: #b8333e;
-}
-
-.history-close-button {
-  border-color: #dfe8e3;
-  background: #fff;
-  color: #52625a;
-}
-
-.history-save-button {
-  background: #16834b;
-  color: #fff;
-}
-
-.history-delete-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 34px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 7px;
-  background: #c53d43;
-  color: #fff;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.history-close-button:disabled,
-.history-save-button:disabled,
-.history-delete-button:disabled {
-  cursor: wait;
-  opacity: 0.6;
 }
 
 .history-delete-confirmation {
@@ -1284,53 +1223,6 @@ const submitAttendance = async () => {
 .history-actions {
   display: flex;
   gap: 6px;
-}
-
-.history-action,
-.history-close-button,
-.history-save-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 34px;
-  padding: 0 10px;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.view-action {
-  border-color: #dce8f4;
-  background: #f2f7fc;
-  color: #356b9a;
-}
-
-.edit-action {
-  border-color: #d3eadc;
-  background: #eff8f2;
-  color: #16834b;
-}
-
-.history-close-button {
-  border-color: #dfe8e3;
-  background: #fff;
-  color: #52625a;
-}
-
-.history-save-button {
-  background: #16834b;
-  color: #fff;
-}
-
-.history-close-button:disabled,
-.history-save-button:disabled {
-  cursor: wait;
-  opacity: 0.6;
 }
 
 .history-details {
@@ -1503,27 +1395,6 @@ const submitAttendance = async () => {
   align-items: center;
   justify-content: center;
   font-size: 22px;
-}
-
-.btn-back {
-  width: 42px;
-  height: 42px;
-  border-radius: 10px;
-  background: #ffffff;
-  border: 1px solid #dfe8e3;
-  color: #1b2d25;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-back:hover {
-  background: #e3f4ea;
-  color: #16834b;
-  border-color: #16834b;
 }
 
 .header-title h2 {
@@ -1701,33 +1572,6 @@ const submitAttendance = async () => {
   font-weight: 600;
 }
 
-.submit-attendance-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 9px;
-  background: #16834b;
-  color: #fff;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s ease, opacity 0.2s ease;
-}
-
-.submit-attendance-button:hover:not(:disabled) {
-  background: #11683b;
-}
-
-.submit-attendance-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
 .attendance-notice {
   margin-bottom: 16px;
   padding: 12px 14px;
@@ -1738,13 +1582,13 @@ const submitAttendance = async () => {
   font-size: 13px;
 }
 
-.data-table {
+:deep(.data-table) {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
 }
 
-.data-table th {
+:deep(.data-table th) {
   background: #fafcfb;
   color: #52625a;
   padding: 12px 16px;
@@ -1753,7 +1597,7 @@ const submitAttendance = async () => {
   border-bottom: 1px solid #e6ede9;
 }
 
-.data-table td {
+:deep(.data-table td) {
   padding: 12px 16px;
   border-bottom: 1px solid #f0f4f2;
   color: #27372f;
@@ -1864,18 +1708,6 @@ const submitAttendance = async () => {
     align-items: stretch;
   }
 
-  .btn-take-attendance {
-    min-height: 40px;
-    border: 0;
-    border-radius: 9px;
-    background: #16834b;
-    color: #fff;
-    font: inherit;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
   .content-card {
     padding: 14px;
   }
@@ -1885,7 +1717,7 @@ const submitAttendance = async () => {
     flex-direction: column;
   }
 
-  .submit-attendance-button {
+  .attendance-submit-bar :deep(.submit-attendance-button) {
     width: 100%;
   }
 

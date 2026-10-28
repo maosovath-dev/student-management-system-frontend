@@ -1,8 +1,10 @@
 import { ref, computed } from "vue";
 import { defineStore } from "pinia";
 import attendanceApi from "../api/attendances";
+import { useToast } from "@/composables/useToast";
 
 export const useAttendanceStore = defineStore("attendance", () => {
+  const { showToast } = useToast();
   // State
   const attendances = ref([]);
   const attendanceItem = ref(null);
@@ -26,11 +28,11 @@ export const useAttendanceStore = defineStore("attendance", () => {
       const response = await attendanceApi.getAll();
       attendances.value = response.data.data || [];
     } catch (err) {
-      console.error(err);
       error.value =
         err.response?.data?.message ||
         err.response?.data?.msg ||
-        "Failed to load attendance records";
+        "មិនអាចទាញយកបញ្ជីវត្តមានបានទេ។";
+      showToast(error.value, "error");
     } finally {
       loading.value = false;
     }
@@ -43,9 +45,9 @@ export const useAttendanceStore = defineStore("attendance", () => {
       const response = await attendanceApi.getById(id);
       attendanceItem.value = response.data.data || response.data;
     } catch (err) {
-      console.error(err);
       error.value =
-        err.response?.data?.message || "Failed to load attendance record";
+        err.response?.data?.message || "មិនអាចទាញយកព័ត៌មានវត្តមានបានទេ។";
+      showToast(error.value, "error");
     } finally {
       loading.value = false;
     }
@@ -59,9 +61,8 @@ export const useAttendanceStore = defineStore("attendance", () => {
       await fetchAttendances();
       return response.data;
     } catch (err) {
-      console.error(err);
       error.value =
-        err.response?.data?.message || "Failed to record attendance";
+        err.response?.data?.message || "មិនអាចកត់ត្រាវត្តមានបានទេ។";
       throw err;
     } finally {
       loading.value = false;
@@ -76,9 +77,8 @@ export const useAttendanceStore = defineStore("attendance", () => {
       await fetchAttendances();
       return response.data;
     } catch (err) {
-      console.error(err);
       error.value =
-        err.response?.data?.message || "Failed to update attendance";
+        err.response?.data?.message || "មិនអាចកែប្រែវត្តមានបានទេ។";
       throw err;
     } finally {
       loading.value = false;
@@ -93,9 +93,8 @@ export const useAttendanceStore = defineStore("attendance", () => {
       await fetchAttendances();
       return response.data;
     } catch (err) {
-      console.error(err);
       error.value =
-        err.response?.data?.message || "Failed to delete attendance record";
+        err.response?.data?.message || "មិនអាចលុបកំណត់ត្រាវត្តមានបានទេ។";
       throw err;
     } finally {
       loading.value = false;

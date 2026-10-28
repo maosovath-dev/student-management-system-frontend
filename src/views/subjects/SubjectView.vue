@@ -1,11 +1,16 @@
 <script setup>
 import { computed, onMounted, ref, reactive } from "vue";
 import { useSubjectStore } from "../../stores/subject.store";
+import BaseButton from "@/components/ui/BaseButton.vue";
+import BaseInput from "@/components/ui/BaseInput.vue";
+import BaseTable from "@/components/ui/BaseTable.vue";
 
 // Import UI Modal Component
 import BaseModal from "@/components/ui/BaseModal.vue";
+import { useToast } from "@/composables/useToast";
 
 const subjectStore = useSubjectStore();
+const { showToast } = useToast();
 const search = ref("");
 
 // Modal Visibility Controls
@@ -26,6 +31,13 @@ const updateForm = reactive({
   name: "",
   description: "",
 });
+
+const subjectTableColumns = [
+  { key: "number", label: "#" },
+  { key: "subject", label: "ឈ្មោះមុខវិជ្ជា" },
+  { key: "description", label: "ការពិពណ៌នា" },
+  { key: "actions", label: "សកម្មភាព" },
+];
 
 onMounted(() => {
   subjectStore.fetchSubjects();
@@ -66,21 +78,57 @@ const openDeleteModal = (item) => {
 
 // Handlers connected to Pinia Store
 const handleCreateSubject = async () => {
-  if (!createForm.name) return;
-  await subjectStore.createSubject({ ...createForm });
-  isCreateModalOpen.value = false;
+  if (!createForm.name.trim()) {
+    showToast("សូមបញ្ចូលឈ្មោះមុខវិជ្ជា។", "warning");
+    return;
+  }
+  try {
+    await subjectStore.createSubject({ ...createForm });
+    isCreateModalOpen.value = false;
+    showToast("បានបន្ថែមមុខវិជ្ជាជោគជ័យ។", "success");
+  } catch (error) {
+    showToast(
+      error.response?.data?.message ||
+        error.response?.data?.msg ||
+        "មិនអាចបន្ថែមមុខវិជ្ជាបានទេ។",
+      "error"
+    );
+  }
 };
 
 const handleUpdateSubject = async () => {
-  if (!updateForm.name) return;
-  await subjectStore.updateSubject(updateForm.id, { ...updateForm });
-  isUpdateModalOpen.value = false;
+  if (!updateForm.name.trim()) {
+    showToast("សូមបញ្ចូលឈ្មោះមុខវិជ្ជា។", "warning");
+    return;
+  }
+  try {
+    await subjectStore.updateSubject(updateForm.id, { ...updateForm });
+    isUpdateModalOpen.value = false;
+    showToast("បានកែប្រែមុខវិជ្ជាជោគជ័យ។", "success");
+  } catch (error) {
+    showToast(
+      error.response?.data?.message ||
+        error.response?.data?.msg ||
+        "មិនអាចកែប្រែមុខវិជ្ជាបានទេ។",
+      "error"
+    );
+  }
 };
 
 const handleDeleteSubject = async () => {
   if (!selectedSubject.value) return;
-  await subjectStore.deleteSubject(selectedSubject.value.id);
-  isDeleteModalOpen.value = false;
+  try {
+    await subjectStore.deleteSubject(selectedSubject.value.id);
+    isDeleteModalOpen.value = false;
+    showToast("បានលុបមុខវិជ្ជាជោគជ័យ។", "success");
+  } catch (error) {
+    showToast(
+      error.response?.data?.message ||
+        error.response?.data?.msg ||
+        "មិនអាចលុបមុខវិជ្ជាបានទេ។",
+      "error"
+    );
+  }
 };
 </script>
 
@@ -96,9 +144,9 @@ const handleDeleteSubject = async () => {
         </div>
       </div>
 
-      <button class="add-btn" @click="openCreateModal">
-        <span>＋</span> បន្ថែមមុខវិជ្ជា
-      </button>
+      <BaseButton variant="primary" icon="bi bi-plus-lg" @click="openCreateModal">
+        បន្ថែមមុខវិជ្ជា
+      </BaseButton>
     </div>
 
     <!-- Summary Card -->
@@ -123,7 +171,7 @@ const handleDeleteSubject = async () => {
 
         <div class="table-search">
           <span>⌕</span>
-          <input
+          <BaseInput
             v-model="search"
             type="text"
             placeholder="ស្វែងរកមុខវិជ្ជា..."
@@ -143,51 +191,44 @@ const handleDeleteSubject = async () => {
 
       <!-- Table View -->
       <div v-else class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>ឈ្មោះមុខវិជ្ជា</th>
-              <th>ការពិពណ៌នា</th>
-              <th>សកម្មភាព</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            <tr v-for="(item, index) in filteredSubjects" :key="item.id">
-              <td>{{ index + 1 }}</td>
-
-              <td>
-                <div class="subject-info">
-                  <div class="subject-avatar">📚</div>
-                  <div>
-                    <strong>{{ item.name }}</strong>
-                  </div>
-                </div>
-              </td>
-
-              <td>{{ item.description || "-" }}</td>
-
-              <td>
-                <div class="actions">
-                  <button class="edit" title="Edit" @click="openEditModal(item)">
-                    ✎
-                  </button>
-                  <button class="delete" title="Delete" @click="openDeleteModal(item)">
-                    🗑
-                  </button>
-                </div>
-              </td>
-            </tr>
-
-            <!-- Empty State -->
-            <tr v-if="filteredSubjects.length === 0">
-              <td colspan="4" class="empty">
-                មិនមានទិន្នន័យមុខវិជ្ជាទេ
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <BaseTable
+          :columns="subjectTableColumns"
+          :items="filteredSubjects"
+          empty-text="មិនមានទិន្នន័យមុខវិជ្ជាទេ"
+        >
+          <template #cell-number="{ index }">{{ index + 1 }}</template>
+          <template #cell-subject="{ row }">
+            <div class="subject-info">
+              <div class="subject-avatar">📚</div>
+              <div><strong>{{ row.name }}</strong></div>
+            </div>
+          </template>
+          <template #cell-description="{ row }">{{ row.description || "-" }}</template>
+          <template #cell-actions="{ row }">
+            <div class="actions">
+              <BaseButton
+                variant="ghost"
+                size="sm"
+                icon="bi bi-pencil-square"
+                icon-only
+                icon-tone="edit"
+                title="កែប្រែមុខវិជ្ជា"
+                :aria-label="`កែប្រែមុខវិជ្ជា ${row.name}`"
+                @click="openEditModal(row)"
+              />
+              <BaseButton
+                variant="ghost"
+                size="sm"
+                icon="bi bi-trash3"
+                icon-only
+                icon-tone="delete"
+                title="លុបមុខវិជ្ជា"
+                :aria-label="`លុបមុខវិជ្ជា ${row.name}`"
+                @click="openDeleteModal(row)"
+              />
+            </div>
+          </template>
+        </BaseTable>
       </div>
     </section>
 
@@ -200,7 +241,7 @@ const handleDeleteSubject = async () => {
       <form @submit.prevent="handleCreateSubject" class="modal-form">
         <div class="form-group">
           <label>ឈ្មោះមុខវិជ្ជា</label>
-          <input
+          <BaseInput
             v-model="createForm.name"
             type="text"
             placeholder="ឧ. Web Development"
@@ -215,12 +256,12 @@ const handleDeleteSubject = async () => {
       </form>
 
       <template #footer>
-        <button class="btn-cancel" @click="isCreateModalOpen = false">
+        <BaseButton variant="secondary" @click="isCreateModalOpen = false">
           បោះបង់
-        </button>
-        <button class="btn-save" @click="handleCreateSubject">
+        </BaseButton>
+        <BaseButton variant="primary" @click="handleCreateSubject">
           រក្សាទុក
-        </button>
+        </BaseButton>
       </template>
     </BaseModal>
 
@@ -233,7 +274,7 @@ const handleDeleteSubject = async () => {
       <form @submit.prevent="handleUpdateSubject" class="modal-form">
         <div class="form-group">
           <label>ឈ្មោះមុខវិជ្ជា</label>
-          <input v-model="updateForm.name" type="text" required />
+          <BaseInput v-model="updateForm.name" type="text" required />
         </div>
 
         <div class="form-group">
@@ -243,12 +284,12 @@ const handleDeleteSubject = async () => {
       </form>
 
       <template #footer>
-        <button class="btn-cancel" @click="isUpdateModalOpen = false">
+        <BaseButton variant="secondary" @click="isUpdateModalOpen = false">
           បោះបង់
-        </button>
-        <button class="btn-save" @click="handleUpdateSubject">
+        </BaseButton>
+        <BaseButton variant="primary" @click="handleUpdateSubject">
           បច្ចុប្បន្នភាព
-        </button>
+        </BaseButton>
       </template>
     </BaseModal>
 
@@ -264,12 +305,12 @@ const handleDeleteSubject = async () => {
       </div>
 
       <template #footer>
-        <button class="btn-cancel" @click="isDeleteModalOpen = false">
+        <BaseButton variant="secondary" @click="isDeleteModalOpen = false">
           បោះបង់
-        </button>
-        <button class="btn-delete" @click="handleDeleteSubject">
+        </BaseButton>
+        <BaseButton variant="danger" @click="handleDeleteSubject">
           លុប
-        </button>
+        </BaseButton>
       </template>
     </BaseModal>
   </div>
@@ -318,23 +359,6 @@ const handleDeleteSubject = async () => {
   margin: 0;
   color: #8b9992;
   font-size: 13px;
-}
-
-.add-btn {
-  border: 0;
-  background: #149b50;
-  color: white;
-  padding: 14px 24px;
-  border-radius: 14px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 8px 20px rgba(20, 155, 80, 0.2);
-  transition: 0.2s;
-}
-
-.add-btn:hover {
-  background: #108c48;
 }
 
 .summary-grid {
@@ -416,23 +440,24 @@ const handleDeleteSubject = async () => {
   overflow-x: auto;
 }
 
-table {
+:deep(.base-table) {
   width: 100%;
   border-collapse: collapse;
 }
 
-thead {
+:deep(.base-table thead) {
   background: #f1f8f4;
 }
 
-th, td {
+:deep(.base-table th),
+:deep(.base-table td) {
   padding: 18px 22px;
   text-align: left;
   border-top: 1px solid #edf2ef;
   font-size: 13px;
 }
 
-th {
+:deep(.base-table th) {
   font-size: 11px;
   font-weight: 800;
 }
@@ -466,15 +491,6 @@ th {
   gap: 7px;
 }
 
-.actions button {
-  width: 34px;
-  height: 34px;
-  border: 0;
-  border-radius: 9px;
-  cursor: pointer;
-  background: #f2f6f4;
-}
-
 .modal-form {
   display: flex;
   flex-direction: column;
@@ -494,32 +510,6 @@ th {
   border: 1px solid #dce7e1;
   border-radius: 10px;
   outline: none;
-}
-
-.btn-cancel {
-  background: #f2f6f4;
-  border: 0;
-  padding: 10px 18px;
-  border-radius: 10px;
-  cursor: pointer;
-}
-
-.btn-save {
-  background: #149b50;
-  color: white;
-  border: 0;
-  padding: 10px 18px;
-  border-radius: 10px;
-  cursor: pointer;
-}
-
-.btn-delete {
-  background: #e53935;
-  color: white;
-  border: 0;
-  padding: 10px 18px;
-  border-radius: 10px;
-  cursor: pointer;
 }
 
 @media (max-width: 768px) {

@@ -6,9 +6,16 @@ import DashboardLayout from "../layout/DashboardLayout.vue";
 // Views
 import LoginView from "@/views/auth/LoginView.vue";
 import Dashboard from "../views/Dashboard.vue";
+import LandingPage from "@/views/public/LandingPage.vue";
+import ReportsView from "@/views/reports/ReportsView.vue";
 
 const routes = [
-  // 1. Public Route
+  // Public Routes
+  {
+    path: "/landing",
+    name: "landing",
+    component: LandingPage,
+  },
   {
     path: "/login",
     name: "login",
@@ -55,6 +62,11 @@ const routes = [
         path: "scores",
         name: "scores",
         component: () => import("@/views/scores/ScoreList.vue"),
+      },
+      {
+        path: "reports",
+        name: "reports",
+        component: ReportsView,
       },
       {
         path: "attendance",

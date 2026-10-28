@@ -2,10 +2,15 @@
 import { ref, computed, reactive, onMounted, onUnmounted } from "vue";
 import { useStudentStore } from "../../stores/student.store";
 import { useClassStore } from "../../stores/classe.store";
+import BaseButton from "@/components/ui/BaseButton.vue";
+import BaseInput from "@/components/ui/BaseInput.vue";
+import BaseTable from "@/components/ui/BaseTable.vue";
 import BaseModal from "@/components/ui/BaseModal.vue";
+import { useToast } from "@/composables/useToast";
 
 const studentStore = useStudentStore();
 const classStore = useClassStore();
+const { showToast } = useToast();
 
 // Filter & Search
 const search = ref("");
@@ -23,6 +28,15 @@ const editAvatarInput = ref(null);
 const editAvatarFile = ref(null);
 const editAvatarPreview = ref("");
 const removeEditAvatar = ref(false);
+
+const studentTableColumns = [
+  { key: "number", label: "#" },
+  { key: "student", label: "ឈ្មោះសិស្ស" },
+  { key: "code", label: "កូដសិស្ស" },
+  { key: "gender", label: "ភេទ" },
+  { key: "class", label: "ថ្នាក់រៀន" },
+  { key: "actions", label: "សកម្មភាព", align: "center" },
+];
 
 const inviteForm = reactive({
   student_code: "",
@@ -67,8 +81,8 @@ const clearInviteAvatar = () => {
   }
   inviteAvatarFile.value = null;
   inviteAvatarPreview.value = "";
-  if (inviteAvatarInput.value) {
-    inviteAvatarInput.value.value = "";
+  if (inviteAvatarInput.value?.inputRef) {
+    inviteAvatarInput.value.inputRef.value = "";
   }
 };
 
@@ -77,13 +91,13 @@ const handleInviteAvatarChange = (event) => {
   if (!file) return;
 
   if (!file.type.startsWith("image/")) {
-    alert("សូមជ្រើសរើសឯកសាររូបភាព។");
+    showToast("សូមជ្រើសរើសឯកសាររូបភាព។", "warning");
     event.target.value = "";
     return;
   }
 
   if (file.size > 2 * 1024 * 1024) {
-    alert("ទំហំរូបភាពមិនអាចលើស 2MB បានទេ។");
+    showToast("ទំហំរូបភាពមិនអាចលើស 2MB បានទេ។", "warning");
     event.target.value = "";
     return;
   }
@@ -105,8 +119,8 @@ const clearEditAvatar = () => {
   editAvatarFile.value = null;
   editAvatarPreview.value = "";
   removeEditAvatar.value = false;
-  if (editAvatarInput.value) {
-    editAvatarInput.value.value = "";
+  if (editAvatarInput.value?.inputRef) {
+    editAvatarInput.value.inputRef.value = "";
   }
 };
 
@@ -115,13 +129,13 @@ const handleEditAvatarChange = (event) => {
   if (!file) return;
 
   if (!file.type.startsWith("image/")) {
-    alert("សូមជ្រើសរើសឯកសាររូបភាព។");
+    showToast("សូមជ្រើសរើសឯកសាររូបភាព។", "warning");
     event.target.value = "";
     return;
   }
 
   if (file.size > 2 * 1024 * 1024) {
-    alert("ទំហំរូបភាពមិនអាចលើស 2MB បានទេ។");
+    showToast("ទំហំរូបភាពមិនអាចលើស 2MB បានទេ។", "warning");
     event.target.value = "";
     return;
   }
@@ -141,8 +155,8 @@ const removeCurrentEditAvatar = () => {
   editAvatarFile.value = null;
   editAvatarPreview.value = "";
   removeEditAvatar.value = true;
-  if (editAvatarInput.value) {
-    editAvatarInput.value.value = "";
+  if (editAvatarInput.value?.inputRef) {
+    editAvatarInput.value.inputRef.value = "";
   }
 };
 
@@ -249,10 +263,10 @@ const handleInviteStudent = async () => {
 
     clearInviteAvatar();
 
-    alert("បានបង្កើតសិស្សជោគជ័យ!");
+    showToast("បានបង្កើតសិស្សជោគជ័យ!", "success");
     isInviteModalOpen.value = false;
   } catch (err) {
-    alert("មានបញ្ហា៖ " + err);
+    showToast(`មានបញ្ហា៖ ${err}`, "error");
   }
 };
 
@@ -277,10 +291,10 @@ const handleUpdateStudent = async () => {
 
     await studentStore.updateStudent(editForm.id, formData);
 
-    alert("បានបច្ចុប្បន្នភាពព័ត៌មានសិស្សជោគជ័យ!");
+    showToast("បានបច្ចុប្បន្នភាពព័ត៌មានសិស្សជោគជ័យ!", "success");
     closeEditModal();
   } catch (err) {
-    alert("មានបញ្ហា៖ " + err);
+    showToast(`មានបញ្ហា៖ ${err}`, "error");
   }
 };
 
@@ -291,9 +305,10 @@ const handleDeleteStudent = async () => {
     await studentStore.deleteStudent(selectedStudent.value.id);
     studentStore.students = studentStore.students.filter(s => s.id !== selectedStudent.value.id);
     isDeleteModalOpen.value = false;
+    showToast("បានលុបសិស្សជោគជ័យ!", "success");
     selectedStudent.value = null;
   } catch (err) {
-    alert("មានបញ្ហាពេលលុប៖ " + err);
+    showToast(`មានបញ្ហាពេលលុប៖ ${err}`, "error");
   }
 };
 </script>
@@ -310,9 +325,9 @@ const handleDeleteStudent = async () => {
         </div>
       </div>
 
-      <button class="btn-primary" @click="openInviteModal">
-        <span class="plus-icon">＋</span> បន្ថែមសិស្សថ្មី
-      </button>
+      <BaseButton variant="primary" icon="bi bi-person-plus-fill" @click="openInviteModal">
+        បន្ថែមសិស្សថ្មី
+      </BaseButton>
     </div>
 
     <!-- Filter & Search Toolbar -->
@@ -320,7 +335,7 @@ const handleDeleteStudent = async () => {
       <div class="toolbar">
         <div class="filter-group">
           <select v-model="selectedClassFilter" class="select-input">
-            <option value="">-- បង្ហាញគ្រប់ថ្នាក់រៀន --</option>
+            <option value="">បង្ហាញគ្រប់ថ្នាក់រៀន</option>
             <option v-for="c in classStore.classes" :key="c.id" :value="c.id">
               {{ c.name || c.class_name }}
             </option>
@@ -333,7 +348,7 @@ const handleDeleteStudent = async () => {
 
         <div class="search-box">
           <span class="search-icon">🔍</span>
-          <input
+          <BaseInput
             v-model="search"
             type="text"
             placeholder="ស្វែងរកតាមឈ្មោះ ឬកូដសិស្ស..."
@@ -347,86 +362,81 @@ const handleDeleteStudent = async () => {
 
       <!-- Data Table -->
       <div v-else class="table-responsive">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>ឈ្មោះសិស្ស</th>
-              <th>កូដសិស្ស</th>
-              <th>ភេទ</th>
-              <th>ថ្នាក់រៀន</th>
-              <th class="text-center">សកម្មភាព</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            <tr v-for="(item, index) in filteredStudents" :key="item.id || index">
-              <td>{{ index + 1 }}</td>
-              <td>
-                <div class="student-profile">
-                  <img
-                    v-if="item.avatar_url"
-                    class="avatar avatar-image"
-                    :src="item.avatar_url"
-                    :alt="`រូប Profile របស់ ${getStudentName(item)}`"
-                  />
-                  <div v-else class="avatar avatar-placeholder" aria-hidden="true">
-                    <i class="bi bi-person-fill"></i>
-                  </div>
-                  <strong>{{ item.name || `${item.first_name || ''} ${item.last_name || ''}`.trim() || 'គ្មានឈ្មោះ' }}</strong>
-                </div>
-              </td>
-              <td><span class="code-tag">{{ item.student_code || '---' }}</span></td>
-              <td>
-                {{
-                  item.gender === 'female' || item.gender === 'F'
-                    ? 'ស្រី'
-                    : (item.gender === 'male' || item.gender === 'M' ? 'ប្រុស' : '---')
-                }}
-              </td>
-              <td>
-                <span :class="['class-tag', item.class_id ? 'has-class' : 'no-class']">
-                  {{ getClassName(item.class_id) }}
-                </span>
-              </td>
-              <td class="text-center">
-                <div class="action-buttons">
-                  <button
-                    class="btn-icon view"
-                    type="button"
-                    title="មើលព័ត៌មានសិស្ស"
-                    :aria-label="`មើលព័ត៌មាន ${getStudentName(item)}`"
-                    @click="openViewModal(item)"
-                  >
-                    <i class="bi bi-eye" aria-hidden="true"></i>
-                  </button>
-                  <button
-                    class="btn-icon edit"
-                    type="button"
-                    title="កែប្រែ / ចាត់ថ្នាក់"
-                    :aria-label="`កែប្រែ ${getStudentName(item)}`"
-                    @click="openEditModal(item)"
-                  >
-                    <i class="bi bi-pencil-square" aria-hidden="true"></i>
-                  </button>
-                  <button
-                    class="btn-icon delete"
-                    type="button"
-                    title="លុបសិស្ស"
-                    :aria-label="`លុប ${getStudentName(item)}`"
-                    @click="openDeleteModal(item)"
-                  >
-                    <i class="bi bi-trash3" aria-hidden="true"></i>
-                  </button>
-                </div>
-              </td>
-            </tr>
-
-            <tr v-if="filteredStudents.length === 0">
-              <td colspan="6" class="state-msg">មិនមានទិន្នន័យសិស្សឡើយ</td>
-            </tr>
-          </tbody>
-        </table>
+        <BaseTable
+          :columns="studentTableColumns"
+          :items="filteredStudents"
+          table-class="data-table"
+          empty-text="មិនមានទិន្នន័យសិស្សឡើយ"
+        >
+          <template #cell-number="{ index }">{{ index + 1 }}</template>
+          <template #cell-student="{ row }">
+            <div class="student-profile">
+              <img
+                v-if="row.avatar_url"
+                class="avatar avatar-image"
+                :src="row.avatar_url"
+                :alt="`រូប Profile របស់ ${getStudentName(row)}`"
+              />
+              <div v-else class="avatar avatar-placeholder" aria-hidden="true">
+                <i class="bi bi-person-fill"></i>
+              </div>
+              <strong>{{ row.name || `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'គ្មានឈ្មោះ' }}</strong>
+            </div>
+          </template>
+          <template #cell-code="{ row }"><span class="code-tag">{{ row.student_code || '---' }}</span></template>
+          <template #cell-gender="{ row }">
+            {{
+              row.gender === 'female' || row.gender === 'F'
+                ? 'ស្រី'
+                : (row.gender === 'male' || row.gender === 'M' ? 'ប្រុស' : '---')
+            }}
+          </template>
+          <template #cell-class="{ row }">
+            <span :class="['class-tag', row.class_id ? 'has-class' : 'no-class']">
+              {{ getClassName(row.class_id) }}
+            </span>
+          </template>
+          <template #cell-actions="{ row }">
+            <div class="action-buttons">
+              <BaseButton
+                variant="ghost"
+                size="sm"
+                icon="bi bi-eye"
+                icon-only
+                icon-tone="view"
+                type="button"
+                title="មើលព័ត៌មានសិស្ស"
+                :aria-label="`មើលព័ត៌មាន ${getStudentName(row)}`"
+                @click="openViewModal(row)"
+              >
+              </BaseButton>
+              <BaseButton
+                variant="ghost"
+                size="sm"
+                icon="bi bi-pencil-square"
+                icon-only
+                icon-tone="edit"
+                type="button"
+                title="កែប្រែ / ចាត់ថ្នាក់"
+                :aria-label="`កែប្រែ ${getStudentName(row)}`"
+                @click="openEditModal(row)"
+              >
+              </BaseButton>
+              <BaseButton
+                variant="ghost"
+                size="sm"
+                icon="bi bi-trash3"
+                icon-only
+                icon-tone="delete"
+                type="button"
+                title="លុបសិស្ស"
+                :aria-label="`លុប ${getStudentName(row)}`"
+                @click="openDeleteModal(row)"
+              >
+              </BaseButton>
+            </div>
+          </template>
+        </BaseTable>
       </div>
     </div>
 
@@ -502,18 +512,18 @@ const handleDeleteStudent = async () => {
         </div>
       </div>
       <template #footer>
-        <button type="button" class="btn-secondary" @click="isViewModalOpen = false">
+        <BaseButton type="button" variant="secondary" @click="isViewModalOpen = false">
           បិទ
-        </button>
-        <button
+        </BaseButton>
+        <BaseButton
           v-if="selectedStudent"
           type="button"
-          class="btn-primary"
+          variant="primary"
           @click="isViewModalOpen = false; openEditModal(selectedStudent)"
         >
           <i class="bi bi-pencil-square" aria-hidden="true"></i>
           កែប្រែព័ត៌មាន
-        </button>
+        </BaseButton>
       </template>
     </BaseModal>
 
@@ -540,7 +550,7 @@ const handleDeleteStudent = async () => {
             </div>
             <div class="student-avatar-controls">
               <label for="new-student-avatar">ជ្រើសរើសរូបភាព</label>
-              <input
+              <BaseInput
                 ref="inviteAvatarInput"
                 id="new-student-avatar"
                 type="file"
@@ -548,14 +558,14 @@ const handleDeleteStudent = async () => {
                 @change="handleInviteAvatarChange"
               />
               <small>ឯកសាររូបភាព មិនលើស 2MB (ជាជម្រើស)</small>
-              <button
+              <BaseButton
                 v-if="inviteAvatarPreview"
                 type="button"
-                class="remove-avatar-btn"
+                variant="secondary"
                 @click="clearInviteAvatar"
               >
                 ដករូបចេញ
-              </button>
+              </BaseButton>
             </div>
           </div>
         </section>
@@ -565,18 +575,18 @@ const handleDeleteStudent = async () => {
           <div class="form-row">
             <div class="form-group">
               <label>ឈ្មោះ (First name) <span class="required">*</span></label>
-              <input v-model="inviteForm.first_name" type="text" autocomplete="given-name" placeholder="បញ្ចូលឈ្មោះ" required />
+              <BaseInput v-model="inviteForm.first_name" type="text" autocomplete="given-name" placeholder="បញ្ចូលឈ្មោះ" required />
             </div>
             <div class="form-group">
               <label>នាមត្រកូល (Last name) <span class="required">*</span></label>
-              <input v-model="inviteForm.last_name" type="text" autocomplete="family-name" placeholder="បញ្ចូលនាមត្រកូល" required />
+              <BaseInput v-model="inviteForm.last_name" type="text" autocomplete="family-name" placeholder="បញ្ចូលនាមត្រកូល" required />
             </div>
           </div>
 
           <div class="form-row">
             <div class="form-group">
               <label>កូដសិស្ស (Student Code) <span class="required">*</span></label>
-              <input v-model="inviteForm.student_code" type="text" autocomplete="off" placeholder="ឧ. STD001" required />
+              <BaseInput v-model="inviteForm.student_code" type="text" autocomplete="off" placeholder="ឧ. STD001" required />
             </div>
             <div class="form-group">
               <label>ភេទ <span class="required">*</span></label>
@@ -602,7 +612,7 @@ const handleDeleteStudent = async () => {
             </div>
             <div class="form-group">
               <label>ថ្ងៃខែឆ្នាំកំណើត</label>
-              <input v-model="inviteForm.date_of_birth" type="date" autocomplete="bday" />
+              <BaseInput v-model="inviteForm.date_of_birth" type="date" autocomplete="bday" />
             </div>
           </div>
         </section>
@@ -612,26 +622,26 @@ const handleDeleteStudent = async () => {
           <div class="form-row">
             <div class="form-group">
               <label>លេខទូរស័ព្ទ</label>
-              <input v-model="inviteForm.phone" type="tel" autocomplete="tel" placeholder="បញ្ចូលលេខទូរស័ព្ទ" />
+              <BaseInput v-model="inviteForm.phone" type="tel" autocomplete="tel" placeholder="បញ្ចូលលេខទូរស័ព្ទ" />
             </div>
             <div class="form-group">
               <label>អាសយដ្ឋាន</label>
-              <input v-model="inviteForm.address" type="text" autocomplete="street-address" placeholder="បញ្ចូលអាសយដ្ឋាន" />
+              <BaseInput v-model="inviteForm.address" type="text" autocomplete="street-address" placeholder="បញ្ចូលអាសយដ្ឋាន" />
             </div>
           </div>
         </section>
       </form>
 
       <template #footer>
-        <button type="button" class="btn-secondary" :disabled="studentStore.loading" @click="closeInviteModal">បោះបង់</button>
-        <button
+        <BaseButton type="button" variant="secondary" :disabled="studentStore.loading" @click="closeInviteModal">បោះបង់</BaseButton>
+        <BaseButton
           type="submit"
           form="invite-student-form"
-          class="btn-primary"
+          variant="primary"
           :disabled="studentStore.loading"
         >
           {{ studentStore.loading ? 'កំពុងរក្សាទុក...' : 'រក្សាទុក' }}
-        </button>
+        </BaseButton>
       </template>
     </BaseModal>
 
@@ -656,7 +666,7 @@ const handleDeleteStudent = async () => {
             </div>
             <div class="student-avatar-controls">
               <label for="edit-student-avatar">ជ្រើសរើសរូបភាពថ្មី</label>
-              <input
+              <BaseInput
                 id="edit-student-avatar"
                 ref="editAvatarInput"
                 type="file"
@@ -664,14 +674,14 @@ const handleDeleteStudent = async () => {
                 @change="handleEditAvatarChange"
               />
               <small>ឯកសាររូបភាព មិនលើស 2MB</small>
-              <button
+              <BaseButton
                 v-if="editAvatarPreview"
                 type="button"
-                class="remove-avatar-btn"
+                variant="secondary"
                 @click="removeCurrentEditAvatar"
               >
                 ដករូបចេញ
-              </button>
+              </BaseButton>
             </div>
           </div>
         </section>
@@ -679,18 +689,18 @@ const handleDeleteStudent = async () => {
         <div class="form-row">
           <div class="form-group">
             <label>នាមត្រកូល (Last name) <span class="required">*</span></label>
-            <input v-model="editForm.last_name" type="text" required />
+            <BaseInput v-model="editForm.last_name" type="text" required />
           </div>
           <div class="form-group">
             <label>ឈ្មោះ (First name) <span class="required">*</span></label>
-            <input v-model="editForm.first_name" type="text" required />
+            <BaseInput v-model="editForm.first_name" type="text" required />
           </div>
         </div>
 
         <div class="form-row">
           <div class="form-group">
             <label>កូដសិស្ស (Student Code) <span class="required">*</span></label>
-            <input v-model="editForm.student_code" type="text" placeholder="ឧ. STD001" required />
+            <BaseInput v-model="editForm.student_code" type="text" placeholder="ឧ. STD001" required />
           </div>
           <div class="form-group">
             <label>ថ្នាក់រៀន (Assign Class)</label>
@@ -713,26 +723,26 @@ const handleDeleteStudent = async () => {
           </div>
           <div class="form-group">
             <label>លេខទូរស័ព្ទ</label>
-            <input v-model="editForm.phone" type="text" placeholder="ឧ. 015241180" />
+            <BaseInput v-model="editForm.phone" type="text" placeholder="ឧ. 015241180" />
           </div>
         </div>
 
         <div class="form-group">
           <label>ថ្ងៃខែឆ្នាំកំណើត</label>
-          <input v-model="editForm.date_of_birth" type="date" />
+          <BaseInput v-model="editForm.date_of_birth" type="date" />
         </div>
 
         <div class="form-group">
           <label>អាសយដ្ឋាន</label>
-          <input v-model="editForm.address" type="text" placeholder="ឧ. Phnom Penh" />
+          <BaseInput v-model="editForm.address" type="text" placeholder="ឧ. Phnom Penh" />
         </div>
       </form>
 
       <template #footer>
-        <button type="button" class="btn-secondary" :disabled="studentStore.loading" @click="closeEditModal">បោះបង់</button>
-        <button type="submit" form="edit-student-form" class="btn-primary" :disabled="studentStore.loading">
+        <BaseButton type="button" variant="secondary" :disabled="studentStore.loading" @click="closeEditModal">បោះបង់</BaseButton>
+        <BaseButton type="submit" form="edit-student-form" variant="primary" :disabled="studentStore.loading">
           {{ studentStore.loading ? "កំពុងរក្សាទុក..." : "រក្សាទុកការផ្លាស់ប្តូរ" }}
-        </button>
+        </BaseButton>
       </template>
     </BaseModal>
 
@@ -751,8 +761,8 @@ const handleDeleteStudent = async () => {
       </div>
 
       <template #footer>
-        <button type="button" class="btn-secondary" @click="isDeleteModalOpen = false">បោះបង់</button>
-        <button type="button" class="btn-danger" @click="handleDeleteStudent">លុបចេញ</button>
+        <BaseButton type="button" variant="secondary" @click="isDeleteModalOpen = false">បោះបង់</BaseButton>
+        <BaseButton type="button" variant="danger" @click="handleDeleteStudent">លុបចេញ</BaseButton>
       </template>
     </BaseModal>
   </div>
@@ -776,10 +786,10 @@ const handleDeleteStudent = async () => {
 .search-box input { box-sizing: border-box; border: 0; background: transparent; padding: 10px 8px; width: 100%; min-width: 0; outline: none; }
 
 .table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.data-table { width: 100%; min-width: 700px; border-collapse: collapse; text-align: left; }
-.data-table th { background: #f8fafc; padding: 14px 18px; font-weight: 600; font-size: 14px; border-bottom: 1px solid #e2e8f0; }
-.data-table td { padding: 14px 18px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
-.data-table tbody tr:hover { background: #fbfefc; }
+:deep(.data-table) { width: 100%; min-width: 700px; border-collapse: collapse; text-align: left; }
+:deep(.data-table th) { background: #f8fafc; padding: 14px 18px; font-weight: 600; font-size: 14px; border-bottom: 1px solid #e2e8f0; }
+:deep(.data-table td) { padding: 14px 18px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+:deep(.data-table tbody tr:hover) { background: #fbfefc; }
 
 .student-profile { display: flex; align-items: center; gap: 10px; }
 .avatar { font-size: 20px; }
@@ -792,19 +802,6 @@ const handleDeleteStudent = async () => {
 .class-tag.no-class { background: #f3f4f6; color: #9ca3af; }
 
 .action-buttons { display: flex; justify-content: center; gap: 6px; }
-.btn-icon { display: inline-grid; place-items: center; background: #f8fafc; border: 1px solid #e2e8f0; width: 34px; height: 34px; border-radius: 8px; cursor: pointer; transition: 0.2s; font-size: 15px; }
-.btn-icon.view { color: #2563a6; background: #f1f7fd; border-color: #dbeafe; }
-.btn-icon.edit { color: #16834b; background: #f0f9f3; border-color: #dcfce7; }
-.btn-icon.delete { color: #c24145; background: #fff5f5; border-color: #fee2e2; }
-.btn-icon.view:hover { background: #e2effc; }
-.btn-icon.edit:hover { background: #dcfce7; }
-.btn-icon.delete:hover { background: #fee2e2; }
-
-.btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 7px; background: #16a34a; color: white; border: 0; padding: 10px 18px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
-.btn-primary:hover { background: #15803d; }
-.btn-secondary { background: #e2e8f0; color: #475569; border: 0; padding: 10px 18px; border-radius: 10px; cursor: pointer; }
-.btn-danger { background: #dc2626; color: white; border: 0; padding: 10px 18px; border-radius: 10px; cursor: pointer; }
-
 .modal-form { display: flex; flex-direction: column; gap: 12px; }
 .form-group { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .form-row { display: flex; gap: 12px; }
@@ -823,7 +820,6 @@ const handleDeleteStudent = async () => {
 .student-avatar-controls label { color: #334155; font-size: 12px; font-weight: 600; }
 .student-avatar-controls input { max-width: 100%; color: #64748b; font: inherit; font-size: 12px; }
 .student-avatar-controls small { color: #64748b; font-size: 11px; }
-.remove-avatar-btn { padding: 0; border: 0; background: none; color: #b4232d; cursor: pointer; font: inherit; font-size: 12px; }
 .create-student-section .form-row + .form-row { margin-top: 12px; }
 .create-student-form .form-group { gap: 6px; }
 .create-student-form .form-group label { color: #334155; font-size: 12px; font-weight: 600; }
@@ -833,8 +829,6 @@ const handleDeleteStudent = async () => {
 .create-student-form .form-group select:focus { border-color: #16a34a; box-shadow: 0 0 0 3px rgb(22 163 74 / 12%); outline: none; }
 .create-student-form .form-group input::placeholder { color: #9aa89f; }
 .create-student-form .required { margin-left: 2px; }
-.btn-secondary:disabled,
-.btn-primary:disabled { cursor: not-allowed; opacity: 0.65; }
 
 .state-msg { padding: 30px; text-align: center; color: #64748b; }
 .state-msg.error { color: #dc2626; }
@@ -868,7 +862,7 @@ const handleDeleteStudent = async () => {
 @media (max-width: 760px) {
   .page-container { padding: 20px 14px; }
   .page-header { align-items: flex-start; flex-direction: column; }
-  .page-header > .btn-primary { width: 100%; }
+  .page-header > :deep(.base-btn) { width: 100%; }
   .toolbar { align-items: stretch; flex-direction: column; padding: 14px; }
   .filter-group { justify-content: space-between; flex-wrap: wrap; }
   .search-box { box-sizing: border-box; width: 100%; }
@@ -879,7 +873,7 @@ const handleDeleteStudent = async () => {
   .icon-box { width: 46px; height: 46px; border-radius: 12px; font-size: 26px; }
   .page-header h2 { font-size: 19px; }
   .subtitle { font-size: 12px; }
-  .data-table th, .data-table td { padding: 12px; }
+  :deep(.data-table th), :deep(.data-table td) { padding: 12px; }
   .student-details-header { align-items: flex-start; gap: 12px; }
   .student-details-avatar { width: 54px; height: 54px; border-radius: 17px; font-size: 26px; }
   .student-details-header h4 { font-size: 17px; }

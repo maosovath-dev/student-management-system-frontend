@@ -1,6 +1,8 @@
 <script setup>
+import BaseButton from "@/components/ui/BaseButton.vue";
+
 import { computed } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute } from "vue-router";
 
 const props = defineProps({
     sidebarOpen: {
@@ -10,7 +12,7 @@ const props = defineProps({
 });
 
 const route = useRoute();
-const router = useRouter();
+const emit = defineEmits(["logout-request"]);
 
 /* =========================
    USER
@@ -100,8 +102,7 @@ const menuGroups = computed(() => [
             {
                 title: "របាយការណ៍",
                 icon: "bi-file-earmark-bar-graph",
-                path: "/scores",
-                view: "reports",
+                path: "/reports",
             },
         ],
     },
@@ -129,12 +130,7 @@ const getTooltip = (item, groupTitle = "") => {
    LOGOUT
 ========================= */
 
-const logout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-
-    router.push("/login");
-};
+const requestLogout = () => emit("logout-request");
 </script>
 
 
@@ -288,19 +284,18 @@ const logout = () => {
              LOGOUT
         ====================================== -->
 
-        <button
+        <BaseButton
             v-if="props.sidebarOpen"
             class="logout-btn"
-            @click="logout"
+            variant="secondary"
+            icon="bi bi-box-arrow-right"
+            @click="requestLogout"
         >
-
-            <i class="bi bi-box-arrow-right"></i>
-
             <span>
                 ចាកចេញ
             </span>
 
-        </button>
+        </BaseButton>
 
     </aside>
 
@@ -577,6 +572,20 @@ const logout = () => {
     background: #eef9f3;
 
     color: #159447;
+
+}
+
+.menu-item:focus {
+
+    outline: none;
+
+}
+
+.menu-item:focus-visible {
+
+    outline: 3px solid rgba(22, 155, 76, 0.35);
+
+    outline-offset: 2px;
 
 }
 
@@ -889,51 +898,13 @@ const logout = () => {
 ===================================================== */
 
 .logout-btn {
-
+    width: calc(100% - 32px);
     margin: 0 16px 15px;
-
-    height: 45px;
-
-    border: none;
-
-    border-radius: 10px;
-
-    background: transparent;
-
-    color: #68756f;
-
     display: flex;
-
     align-items: center;
-
+    justify-content: flex-start;
     gap: 12px;
-
     padding: 0 18px;
-
-    font-size: 14px;
-
-    font-weight: 600;
-
-    cursor: pointer;
-
-    transition: 0.2s ease;
-
-}
-
-
-.logout-btn:hover {
-
-    background: #fff0f0;
-
-    color: #d64545;
-
-}
-
-
-.logout-btn i {
-
-    font-size: 18px;
-
 }
 
 

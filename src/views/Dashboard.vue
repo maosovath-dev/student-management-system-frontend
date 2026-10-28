@@ -1,10 +1,18 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
 import { api } from "@/api/api";
+import BaseButton from "@/components/ui/BaseButton.vue";
+import BaseTable from "@/components/ui/BaseTable.vue";
 
 const dashboardData = ref(null);
 const dashboardLoading = ref(true);
 const dashboardError = ref("");
+const recentAttendanceColumns = [
+    { key: "student", label: "សិស្ស" },
+    { key: "class", label: "ថ្នាក់" },
+    { key: "date", label: "កាលបរិច្ឆេទ" },
+    { key: "status", label: "ស្ថានភាព" },
+];
 
 const user = computed(() => {
 
@@ -142,7 +150,7 @@ onMounted(fetchDashboard);
 
         <div v-if="dashboardError" class="dashboard-error" role="alert">
             <span>{{ dashboardError }}</span>
-            <button type="button" @click="fetchDashboard">ព្យាយាមម្ដងទៀត</button>
+            <BaseButton variant="outline" type="button" @click="fetchDashboard">ព្យាយាមម្ដងទៀត</BaseButton>
         </div>
 
         <!-- =================================
@@ -346,49 +354,37 @@ onMounted(fetchDashboard);
                 <a href="/attendance">មើលទាំងអស់ →</a>
             </div>
             <div class="table-wrapper recent-attendance-table">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>សិស្ស</th>
-                            <th>ថ្នាក់</th>
-                            <th>កាលបរិច្ឆេទ</th>
-                            <th>ស្ថានភាព</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-if="dashboardLoading">
-                            <td colspan="4" class="dashboard-table-state">កំពុងទាញយកវត្តមាន...</td>
-                        </tr>
-                        <tr v-else-if="dashboardData?.recentAttendance?.length === 0">
-                            <td colspan="4" class="dashboard-table-state">មិនទាន់មានកំណត់ត្រាវត្តមានថ្ងៃនេះទេ</td>
-                        </tr>
-                        <tr v-for="record in dashboardData?.recentAttendance || []" :key="record.id">
-                            <td>
-                                <div class="recent-student-cell">
-                                    <div class="attendance-avatar">
-                                        <img
-                                            v-if="record.avatar_url"
-                                            :src="record.avatar_url"
-                                            :alt="`រូប Profile របស់ ${record.first_name} ${record.last_name}`"
-                                        />
-                                        <i v-else class="bi bi-person-fill" aria-hidden="true"></i>
-                                    </div>
-                                    <div>
-                                        <strong>{{ record.first_name }} {{ record.last_name }}</strong>
-                                        <small>{{ record.student_code }}</small>
-                                    </div>
-                                </div>
-                            </td>
-                            <td>{{ record.class_name || "—" }}</td>
-                            <td>{{ formatDate(record.date) }}</td>
-                            <td>
-                                <span :class="['attendance-status', `attendance-${record.status}`]">
-                                    {{ statusLabel(record.status) }}
-                                </span>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+                <BaseTable
+                    :columns="recentAttendanceColumns"
+                    :items="dashboardData?.recentAttendance || []"
+                    :loading="dashboardLoading"
+                    empty-text="មិនទាន់មានកំណត់ត្រាវត្តមានថ្ងៃនេះទេ"
+                    table-class="dashboard-data-table"
+                >
+                    <template #cell-student="{ row }">
+                        <div class="recent-student-cell">
+                            <div class="attendance-avatar">
+                                <img
+                                    v-if="row.avatar_url"
+                                    :src="row.avatar_url"
+                                    :alt="`រូប Profile របស់ ${row.first_name} ${row.last_name}`"
+                                />
+                                <i v-else class="bi bi-person-fill" aria-hidden="true"></i>
+                            </div>
+                            <div>
+                                <strong>{{ row.first_name }} {{ row.last_name }}</strong>
+                                <small>{{ row.student_code }}</small>
+                            </div>
+                        </div>
+                    </template>
+                    <template #cell-class="{ row }">{{ row.class_name || "—" }}</template>
+                    <template #cell-date="{ row }">{{ formatDate(row.date) }}</template>
+                    <template #cell-status="{ row }">
+                        <span :class="['attendance-status', `attendance-${row.status}`]">
+                            {{ statusLabel(row.status) }}
+                        </span>
+                    </template>
+                </BaseTable>
             </div>
         </section>
 
@@ -906,7 +902,7 @@ onMounted(fetchDashboard);
     margin-top: 20px;
 }
 
-.recent-attendance-table table {
+.recent-attendance-table :deep(.dashboard-data-table) {
     min-width: 600px;
 }
 
@@ -1015,7 +1011,7 @@ onMounted(fetchDashboard);
 }
 
 
-table {
+:deep(.dashboard-data-table) {
 
     width: 100%;
 
@@ -1026,7 +1022,7 @@ table {
 }
 
 
-th {
+:deep(.dashboard-data-table th) {
 
     height: 43px;
 
@@ -1043,7 +1039,7 @@ th {
 }
 
 
-td {
+:deep(.dashboard-data-table td) {
 
     height: 55px;
 

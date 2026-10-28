@@ -1,14 +1,26 @@
 <script setup>
 import { computed, onMounted, ref, reactive } from "vue";
 import { useClassStore } from "../../stores/classe.store";
+import BaseButton from "@/components/ui/BaseButton.vue";
+import BaseInput from "@/components/ui/BaseInput.vue";
+import BaseTable from "@/components/ui/BaseTable.vue";
+import { useToast } from "@/composables/useToast";
 
 // Base UI Component
 import BaseModal from "@/components/ui/BaseModal.vue";
 
 const classStore = useClassStore();
+const { showToast } = useToast();
 
 const search = ref("");
 const formError = ref("");
+const canManageClasses = computed(() => {
+    try {
+        return JSON.parse(localStorage.getItem("user") || "{}").role === "admin";
+    } catch {
+        return false;
+    }
+});
 
 // Modal States
 const isCreateModalOpen = ref(false);
@@ -31,6 +43,16 @@ const updateForm = reactive({
     description: "",
 });
 
+const classTableColumns = computed(() => [
+    { key: "number", label: "#" },
+    { key: "class", label: "ឈ្មោះថ្នាក់" },
+    { key: "description", label: "ការពិពណ៌នា" },
+    { key: "code", label: "លេខសម្គាល់" },
+    { key: "students", label: "ចំនួនសិស្ស" },
+    { key: "status", label: "ស្ថានភាព" },
+    ...(canManageClasses.value ? [{ key: "actions", label: "សកម្មភាព" }] : []),
+]);
+
 onMounted(() => {
     classStore.fetchClasses();
 });
@@ -45,7 +67,8 @@ const filteredClasses = computed(() => {
     return classStore.classes.filter((item) => {
         return (
             String(item.id).toLowerCase().includes(keyword) ||
-            String(item.name || "").toLowerCase().includes(keyword)
+            String(item.name || "").toLowerCase().includes(keyword) ||
+            String(item.description || "").toLowerCase().includes(keyword)
         );
     });
 });
@@ -81,6 +104,7 @@ const openViewModal = (item) => {
 const handleCreateClass = async () => {
     if (!createForm.name.trim()) {
         formError.value = "សូមបញ្ចូលឈ្មោះថ្នាក់";
+        showToast(formError.value, "warning");
         return;
     }
 
@@ -92,17 +116,20 @@ const handleCreateClass = async () => {
             description: createForm.description.trim(),
         });
         isCreateModalOpen.value = false;
+        showToast("បានបន្ថែមថ្នាក់រៀនជោគជ័យ។", "success");
     } catch (error) {
         formError.value =
             error.response?.data?.message ||
             error.response?.data?.msg ||
             "មិនអាចបន្ថែមថ្នាក់បានទេ";
+        showToast(formError.value, "error");
     }
 };
 
 const handleUpdateClass = async () => {
     if (!updateForm.name.trim()) {
         formError.value = "សូមបញ្ចូលឈ្មោះថ្នាក់";
+        showToast(formError.value, "warning");
         return;
     }
 
@@ -114,11 +141,13 @@ const handleUpdateClass = async () => {
             description: updateForm.description.trim(),
         });
         isUpdateModalOpen.value = false;
+        showToast("បានកែប្រែព័ត៌មានថ្នាក់រៀនជោគជ័យ។", "success");
     } catch (error) {
         formError.value =
             error.response?.data?.message ||
             error.response?.data?.msg ||
             "មិនអាចកែប្រែថ្នាក់បានទេ";
+        showToast(formError.value, "error");
     }
 };
 
@@ -130,11 +159,13 @@ const handleDeleteClass = async () => {
     try {
         await classStore.deleteClass(selectedClass.value.id);
         isDeleteModalOpen.value = false;
+        showToast("បានលុបថ្នាក់រៀនជោគជ័យ។", "success");
     } catch (error) {
         formError.value =
             error.response?.data?.message ||
             error.response?.data?.msg ||
             "មិនអាចលុបថ្នាក់បានទេ";
+        showToast(formError.value, "error");
     }
 };
 </script>
@@ -144,22 +175,27 @@ const handleDeleteClass = async () => {
         <!-- Page Header -->
         <div class="page-header">
             <div class="page-title">
-                <div class="title-icon">🏫</div>
+                <div class="title-icon"><i class="bi bi-building-fill" aria-hidden="true"></i></div>
                 <div>
                     <h1>ថ្នាក់</h1>
                     <p>គ្រប់គ្រង និងមើលព័ត៌មានថ្នាក់រៀន</p>
                 </div>
             </div>
 
-            <button class="add-btn" @click="openCreateModal">
-                <span>＋</span> បន្ថែមថ្នាក់
-            </button>
+            <BaseButton
+                v-if="canManageClasses"
+                variant="primary"
+                icon="bi bi-plus-lg"
+                @click="openCreateModal"
+            >
+                បន្ថែមថ្នាក់
+            </BaseButton>
         </div>
 
         <!-- Summary -->
         <div class="summary-grid">
             <div class="summary-card">
-                <div class="summary-icon">🏫</div>
+                <div class="summary-icon"><i class="bi bi-building" aria-hidden="true"></i></div>
                 <div>
                     <p>ចំនួនថ្នាក់</p>
                     <h2>{{ classStore.totalClasses }}</h2>
@@ -178,8 +214,8 @@ const handleDeleteClass = async () => {
                 </div>
 
                 <div class="table-search">
-                    <span>⌕</span>
-                    <input
+                    <i class="bi bi-search" aria-hidden="true"></i>
+                    <BaseInput
                         v-model="search"
                         type="text"
                         placeholder="ស្វែងរកថ្នាក់..."
@@ -199,90 +235,71 @@ const handleDeleteClass = async () => {
 
             <!-- Table -->
             <div v-else class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>ឈ្មោះថ្នាក់</th>
-                            <th>ការពិពណ៌នា</th>
-                            <th>លេខសម្គាល់</th>
-                            <th>ចំនួនសិស្ស</th>
-                            <th>ស្ថានភាព</th>
-                            <th>សកម្មភាព</th>
-                        </tr>
-                    </thead>
-
-                    <tbody>
-                        <tr
-                            v-for="(item, index) in filteredClasses"
-                            :key="item.id"
-                        >
-                            <td>{{ index + 1 }}</td>
-
-                            <td>
-                                <div class="class-info">
-                                    <div class="class-avatar">🏫</div>
-                                    <div>
-                                        <strong>{{ item.name }}</strong>
-                                        <small>ID: {{ item.id }}</small>
-                                    </div>
-                                </div>
-                            </td>
-
-                            <td>{{ item.description || "-" }}</td>
-
-                            <td>
-                                <span class="code">
-                                    {{ item.code || `CLS${String(item.id).padStart(3, "0")}` }}
-                                </span>
-                            </td>
-
-                            <td>
-                                <span class="student-count">
-                                    👥 {{ item.student_count || 0 }}
-                                </span>
-                            </td>
-
-                            <td>
-                                <span class="status">● សកម្ម</span>
-                            </td>
-
-                            <td>
-                                <div class="actions">
-                                    <button
-                                        class="view"
-                                        title="មើលព័ត៌មានលម្អិត"
-                                        aria-label="មើលព័ត៌មានលម្អិត"
-                                        @click="openViewModal(item)"
-                                    >
-                                        👁
-                                    </button>
-                                    <button
-                                        class="edit"
-                                        title="Edit"
-                                        @click="openEditModal(item)"
-                                    >
-                                        ✎
-                                    </button>
-                                    <button
-                                        class="delete"
-                                        title="Delete"
-                                        @click="openDeleteModal(item)"
-                                    >
-                                        🗑
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-
-                        <!-- Empty -->
-                        <tr v-if="filteredClasses.length === 0">
-                            <td colspan="7" class="empty">
-                                មិនមានទិន្នន័យថ្នាក់ទេ
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+                <BaseTable
+                    :columns="classTableColumns"
+                    :items="filteredClasses"
+                    empty-text="មិនមានទិន្នន័យថ្នាក់ទេ"
+                >
+                    <template #cell-number="{ index }">{{ index + 1 }}</template>
+                    <template #cell-class="{ row }">
+                        <div class="class-info">
+                            <div class="class-avatar">🏫</div>
+                            <div>
+                                <strong>{{ row.name }}</strong>
+                                <small>ID: {{ row.id }}</small>
+                            </div>
+                        </div>
+                    </template>
+                    <template #cell-description="{ row }">{{ row.description || "-" }}</template>
+                    <template #cell-code="{ row }">
+                        <span class="code">
+                            {{ row.code || `CLS${String(row.id).padStart(3, "0")}` }}
+                        </span>
+                    </template>
+                    <template #cell-students="{ row }">
+                        <span class="student-count">👥 {{ row.student_count || 0 }}</span>
+                    </template>
+                    <template #cell-status><span class="status">● សកម្ម</span></template>
+                    <template #cell-actions="{ row }">
+                        <div class="actions">
+                            <BaseButton
+                                class="view"
+                                variant="ghost"
+                                size="sm"
+                                icon="bi bi-eye"
+                                icon-only
+                                icon-tone="view"
+                                title="មើលព័ត៌មានលម្អិត"
+                                aria-label="មើលព័ត៌មានលម្អិត"
+                                @click="openViewModal(row)"
+                            />
+                            <BaseButton
+                                v-if="canManageClasses"
+                                class="edit"
+                                variant="ghost"
+                                size="sm"
+                                icon="bi bi-pencil-square"
+                                icon-only
+                                icon-tone="edit"
+                                title="កែប្រែថ្នាក់"
+                                aria-label="កែប្រែថ្នាក់"
+                                @click="openEditModal(row)"
+                            />
+                            <BaseButton
+                                v-if="canManageClasses"
+                                class="delete"
+                                variant="ghost"
+                                size="sm"
+                                icon="bi bi-trash3"
+                                icon-only
+                                icon-tone="delete"
+                                title="លុបថ្នាក់"
+                                aria-label="លុបថ្នាក់"
+                                @click="openDeleteModal(row)"
+                            />
+                        </div>
+                    </template>
+                </BaseTable>
             </div>
         </section>
 
@@ -318,13 +335,13 @@ const handleDeleteClass = async () => {
             </dl>
 
             <template #footer>
-                <button
+                <BaseButton
                     type="button"
-                    class="btn-cancel"
+                    variant="secondary"
                     @click="isViewModalOpen = false"
                 >
                     បិទ
-                </button>
+                </BaseButton>
             </template>
         </BaseModal>
 
@@ -334,10 +351,10 @@ const handleDeleteClass = async () => {
             title="បន្ថែមថ្នាក់"
             @close="isCreateModalOpen = false"
         >
-            <form @submit.prevent="handleCreateClass" class="modal-form">
+            <form @submit.prevent="handleCreateClass" class="modal-form class-form">
                 <div class="form-group">
                     <label>ឈ្មោះថ្នាក់</label>
-                    <input
+                    <BaseInput
                         v-model="createForm.name"
                         type="text"
                         placeholder="ឧ. Year 4 - CS"
@@ -347,7 +364,7 @@ const handleDeleteClass = async () => {
 
                 <div class="form-group">
                     <label>ការពិពណ៌នា</label>
-                    <input
+                    <BaseInput
                         v-model="createForm.description"
                         type="text"
                         placeholder="ឧ. ថ្នាក់ទី១១ ក្រុម A"
@@ -358,21 +375,21 @@ const handleDeleteClass = async () => {
             <p v-if="formError" class="form-error">{{ formError }}</p>
 
             <template #footer>
-                <button
+                <BaseButton
                     type="button"
-                    class="btn-cancel"
+                    variant="secondary"
                     @click="isCreateModalOpen = false"
                 >
                     បោះបង់
-                </button>
-                <button
+                </BaseButton>
+                <BaseButton
                     type="button"
-                    class="btn-save"
+                    variant="primary"
                     :disabled="classStore.loading"
                     @click="handleCreateClass"
                 >
                     {{ classStore.loading ? "កំពុងរក្សាទុក..." : "រក្សាទុក" }}
-                </button>
+                </BaseButton>
             </template>
         </BaseModal>
 
@@ -382,10 +399,10 @@ const handleDeleteClass = async () => {
             title="កែប្រែថ្នាក់"
             @close="isUpdateModalOpen = false"
         >
-            <form @submit.prevent="handleUpdateClass" class="modal-form">
+            <form @submit.prevent="handleUpdateClass" class="modal-form class-form">
                 <div class="form-group">
                     <label>ឈ្មោះថ្នាក់</label>
-                    <input
+                    <BaseInput
                         v-model="updateForm.name"
                         type="text"
                         required
@@ -394,7 +411,7 @@ const handleDeleteClass = async () => {
 
                 <div class="form-group">
                     <label>ការពិពណ៌នា</label>
-                    <input
+                    <BaseInput
                         v-model="updateForm.description"
                         type="text"
                         placeholder="ឧ. ថ្នាក់ទី១១ ក្រុម A"
@@ -405,21 +422,21 @@ const handleDeleteClass = async () => {
             <p v-if="formError" class="form-error">{{ formError }}</p>
 
             <template #footer>
-                <button
+                <BaseButton
                     type="button"
-                    class="btn-cancel"
+                    variant="secondary"
                     @click="isUpdateModalOpen = false"
                 >
                     បោះបង់
-                </button>
-                <button
+                </BaseButton>
+                <BaseButton
                     type="button"
-                    class="btn-save"
+                    variant="primary"
                     :disabled="classStore.loading"
                     @click="handleUpdateClass"
                 >
                     {{ classStore.loading ? "កំពុងកែប្រែ..." : "បច្ចុប្បន្នភាព" }}
-                </button>
+                </BaseButton>
             </template>
         </BaseModal>
 
@@ -436,21 +453,21 @@ const handleDeleteClass = async () => {
             <p v-if="formError" class="form-error">{{ formError }}</p>
 
             <template #footer>
-                <button
+                <BaseButton
                     type="button"
-                    class="btn-cancel"
+                    variant="secondary"
                     @click="isDeleteModalOpen = false"
                 >
                     បោះបង់
-                </button>
-                <button
+                </BaseButton>
+                <BaseButton
                     type="button"
-                    class="btn-delete"
+                    variant="danger"
                     :disabled="classStore.loading"
                     @click="handleDeleteClass"
                 >
                     {{ classStore.loading ? "កំពុងលុប..." : "លុប" }}
-                </button>
+                </BaseButton>
             </template>
         </BaseModal>
     </div>
@@ -496,26 +513,6 @@ const handleDeleteClass = async () => {
 .page-title p {
     margin: 0;
     color: #8b9992;
-}
-
-/* ================= ADD BUTTON ================= */
-.add-btn {
-    border: 0;
-    background: #149b50;
-    color: white;
-    padding: 14px 24px;
-    border-radius: 14px;
-    font-family: inherit;
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    box-shadow: 0 8px 20px rgba(20, 155, 80, 0.2);
-    transition: 0.2s;
-}
-
-.add-btn:hover {
-    background: #108c48;
-    transform: translateY(-1px);
 }
 
 /* ================= SUMMARY ================= */
@@ -604,11 +601,21 @@ const handleDeleteClass = async () => {
     color: #82928a;
 }
 
-.table-search span {
-    font-size: 28px;
+.table-search > i {
+    flex: 0 0 auto;
+    color: #82928a;
+    font-size: 16px;
 }
 
-.table-search input {
+.table-search :deep(.input-group) {
+    min-width: 0;
+}
+
+.table-search :deep(.input-wrapper) {
+    min-width: 0;
+}
+
+.table-search :deep(.base-input) {
     width: 100%;
     border: 0;
     outline: 0;
@@ -623,17 +630,17 @@ const handleDeleteClass = async () => {
     overflow-x: auto;
 }
 
-table {
+:deep(.base-table) {
     width: 100%;
     border-collapse: collapse;
     min-width: 850px;
 }
 
-thead {
+:deep(.base-table thead) {
     background: #f1f8f4;
 }
 
-th {
+:deep(.base-table th) {
     padding: 18px 22px;
     text-align: left;
     color: #50665a;
@@ -641,7 +648,7 @@ th {
     font-weight: 700;
 }
 
-td {
+:deep(.base-table td) {
     padding: 18px 22px;
     border-top: 1px solid #edf2ef;
     color: #607168;
@@ -702,29 +709,8 @@ td {
 
 .actions {
     display: flex;
+    align-items: center;
     gap: 7px;
-}
-
-.actions button {
-    width: 34px;
-    height: 34px;
-    border: 0;
-    border-radius: 9px;
-    cursor: pointer;
-    background: #f2f6f4;
-    transition: 0.2s;
-}
-
-.actions .view:hover {
-    background: #e3f3fc;
-}
-
-.actions .edit:hover {
-    background: #fff5dc;
-}
-
-.actions .delete:hover {
-    background: #ffe8e8;
 }
 
 .loading,
@@ -819,48 +805,6 @@ td {
     color: #183c2b;
     font-weight: 600;
     overflow-wrap: anywhere;
-}
-
-.btn-cancel {
-    background: #f2f6f4;
-    border: 0;
-    color: #607168;
-    padding: 10px 18px;
-    border-radius: 10px;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.btn-cancel:hover {
-    background: #e5ece8;
-}
-
-.btn-save {
-    background: #149b50;
-    border: 0;
-    color: white;
-    padding: 10px 18px;
-    border-radius: 10px;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.btn-save:hover {
-    background: #108c48;
-}
-
-.btn-delete {
-    background: #e53935;
-    border: 0;
-    color: white;
-    padding: 10px 18px;
-    border-radius: 10px;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.btn-delete:hover {
-    background: #d32f2f;
 }
 
 @media (max-width: 900px) {

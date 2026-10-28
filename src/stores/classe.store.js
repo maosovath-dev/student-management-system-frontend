@@ -1,8 +1,10 @@
 import { ref, computed } from "vue";
 import { defineStore } from "pinia";
 import classApi from "../api/classes";
+import { useToast } from "@/composables/useToast";
 
 export const useClassStore = defineStore("class", () => {
+  const { showToast } = useToast();
   // 1. State (ប្រើ ref)
   const classes = ref([]);
   const classItem = ref(null); // ប្តូរឈ្មោះពី class ដើម្បីកុំឱ្យជាន់ពាក្យគន្លឹះ JavaScript
@@ -26,11 +28,11 @@ export const useClassStore = defineStore("class", () => {
         student_count: Number(item.student_count || 0),
       }));
     } catch (err) {
-      console.error(err);
       error.value =
         err.response?.data?.message ||
         err.response?.data?.msg ||
-        "Failed to load classes";
+        "មិនអាចទាញយកបញ្ជីថ្នាក់បានទេ។";
+      showToast(error.value, "error");
     } finally {
       loading.value = false;
     }
@@ -45,11 +47,11 @@ export const useClassStore = defineStore("class", () => {
       const response = await classApi.getById(id);
       classItem.value = response.data.data;
     } catch (err) {
-      console.error(err);
       error.value =
         err.response?.data?.message ||
         err.response?.data?.msg ||
-        "Failed to load class";
+        "មិនអាចទាញយកព័ត៌មានថ្នាក់បានទេ។";
+      showToast(error.value, "error");
     } finally {
       loading.value = false;
     }
@@ -65,11 +67,10 @@ export const useClassStore = defineStore("class", () => {
       await fetchClasses();
       return response.data;
     } catch (err) {
-      console.error(err);
       error.value =
         err.response?.data?.message ||
         err.response?.data?.msg ||
-        "Failed to create class";
+        "មិនអាចបង្កើតថ្នាក់បានទេ។";
       throw err;
     } finally {
       loading.value = false;
@@ -86,11 +87,10 @@ export const useClassStore = defineStore("class", () => {
       await fetchClasses();
       return response.data;
     } catch (err) {
-      console.error(err);
       error.value =
         err.response?.data?.message ||
         err.response?.data?.msg ||
-        "Failed to update class";
+        "មិនអាចកែប្រែថ្នាក់បានទេ។";
       throw err;
     } finally {
       loading.value = false;
@@ -107,11 +107,10 @@ export const useClassStore = defineStore("class", () => {
       await fetchClasses();
       return response.data;
     } catch (err) {
-      console.error(err);
       error.value =
         err.response?.data?.message ||
         err.response?.data?.msg ||
-        "Failed to delete class";
+        "មិនអាចលុបថ្នាក់បានទេ។";
       throw err;
     } finally {
       loading.value = false;
